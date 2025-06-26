@@ -33,10 +33,10 @@ enum Commands {
     Run {
         /// Path to JSON file containing tree of current workspace.
         #[arg(long)]
-        tree_json: PathBuf,
+        tree_file: PathBuf,
         /// Path to JSON file containing tree of feature branch workspace.
         #[arg(long)]
-        branch_tree_json: PathBuf,
+        branch_tree_file: PathBuf,
     },
     /// Analyze current workspace and produce structure tree.
     Tree,
@@ -62,24 +62,22 @@ fn main() {
         eprintln!("Error loading config: {}", e);
         std::process::exit(1);
     });
+
     let workspace_path = std::env::current_dir().unwrap();
 
     match &cli.command {
         Commands::Run {
-            tree_json,
-            branch_tree_json,
-        } => run(&workspace_path, config, tree_json, branch_tree_json),
+            tree_file,
+            branch_tree_file,
+        } => run(&workspace_path, config, tree_file, branch_tree_file),
 
         Commands::Tree => tree(&workspace_path, config),
     }
 }
 
-fn run(workspace: &PathBuf, config: Config, tree_json: &PathBuf, branch_tree_json: &PathBuf) {
-    eprintln!("Running deltabuild..");
-    eprintln!();
-
-    eprintln!("Looking up git changes..");
-    eprintln!();
+fn run(workspace: &PathBuf, config: Config, tree_file: &PathBuf, branch_tree_file: &PathBuf) {
+    eprintln!("Running deltabuild..\n");
+    eprintln!("Looking up git changes..\n");
 
     let diff = match git::diff(workspace, config.git) {
         Ok(i) => i,
@@ -103,14 +101,33 @@ fn run(workspace: &PathBuf, config: Config, tree_json: &PathBuf, branch_tree_jso
     }
 
     eprintln!();
-    eprintln!("Using structure json        : {}", tree_json.display());
-    eprintln!(
-        "Using branch structure json : {}",
-        branch_tree_json.display()
-    );
+    eprintln!("Using structure json        : {}", tree_file.display());
+    eprintln!("Using branch structure json : {}", branch_tree_file.display());
+
+    let current_tree: WorkspaceTree = match utils::deserialize_from(tree_file) {
+        Ok(tree) => tree,
+        Err(e) => {
+            eprintln!("Error loading current workspace tree: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let branch_tree: WorkspaceTree = match utils::deserialize_from(branch_tree_file) {
+        Ok(tree) => tree,
+        Err(e) => {
+            eprintln!("Error loading branch workspace tree: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    for dep in &current_tree.crates.dependencies {
+        eprintln!("{}", dep.name);
+    }
 }
 
 fn tree(workspace: &PathBuf, config: Config) {
+    eprintln!("Analyzing workspace..");
+
     let manifest_path = workspace.join("Cargo.toml");
     let metadata = match cargo::metadata(manifest_path) {
         Ok(metadata) => metadata,
@@ -120,10 +137,8 @@ fn tree(workspace: &PathBuf, config: Config) {
         }
     };
 
-    let packages = cargo::filter_workspace_crates(&metadata);
-    let file_tree = files::build_tree(&metadata, &packages, &config);
-
-    // Build crate dependency tree
+    let crates = cargo::filter_workspace_crates(&metadata);
+    let file_tree = files::build_tree(&metadata, &crates, &config);
     let crate_tree = crates::build_tree(&metadata);
 
     let workspace_tree = WorkspaceTree {

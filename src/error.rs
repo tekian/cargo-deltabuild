@@ -20,6 +20,20 @@ pub enum Error {
     #[error("Failed to parse config file: {0}")]
     ConfigParse(#[from] toml::de::Error),
 
+    #[error("Failed to read JSON file '{file}': {source}")]
+    JsonFileRead {
+        file: String,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Failed to parse JSON file '{file}': {source}")]
+    JsonFileParse {
+        file: String,
+        #[source]
+        source: serde_json::Error,
+    },
+
     #[error(transparent)]
     SynError(#[from] syn::Error),
 

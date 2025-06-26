@@ -1,5 +1,46 @@
+use encoding_rs::Encoding;
 use normpath::PathExt;
 use std::path::{Path, PathBuf};
+use serde::de::DeserializeOwned;
+use crate::error::{Error, Result};
+
+pub fn deserialize_from<T: DeserializeOwned>(file_path: &Path) -> Result<T> {
+    let file_path_str = file_path.display().to_string();
+
+    let bytes = std::fs::read(file_path)
+        .map_err(|source| Error::JsonFileRead {
+            file: file_path_str.clone(),
+            source,
+        })?;
+
+    let (encoding, bytes_without_bom) =
+        Encoding::for_bom(&bytes)
+            .unwrap_or((encoding_rs::UTF_8, 0));
+
+    let bytes_to_decode = if bytes_without_bom > 0 {
+        &bytes[bytes_without_bom..]
+    } else {
+        &bytes
+    };
+
+    let (content, _, error) = encoding.decode(bytes_to_decode);
+
+    if error {
+        return Err(Error::JsonFileRead {
+            file: file_path_str.clone(),
+            source: std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Unable to decode file: {}", encoding.name())
+            ),
+        });
+    }
+
+    serde_json::from_str(&content)
+        .map_err(|source| Error::JsonFileParse {
+            file: file_path_str,
+            source,
+        })
+}
 
 pub fn resolve_includes(base: &Path, includes: &[String]) -> Vec<PathBuf> {
     let mut files = Vec::new();
