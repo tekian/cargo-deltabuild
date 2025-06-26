@@ -11,7 +11,6 @@ pub struct CrateNode {
 pub fn build_tree(metadata: &CargoMetadata) -> CrateNode {
     let mut workspace = HashSet::new();
     let mut dependencies = HashMap::new();
-    let mut dependents = HashMap::new();
 
     for package in &metadata.packages {
         if package.source.is_some() {
@@ -19,7 +18,6 @@ pub fn build_tree(metadata: &CargoMetadata) -> CrateNode {
         }
         workspace.insert(package.name.clone());
         dependencies.insert(package.name.clone(), Vec::new());
-        dependents.insert(package.name.clone(), Vec::new());
     }
 
     for package in &metadata.packages {
@@ -36,11 +34,6 @@ pub fn build_tree(metadata: &CargoMetadata) -> CrateNode {
                 .get_mut(&package.name)
                 .unwrap()
                 .push(dep.name.clone());
-
-            dependents
-                .get_mut(&dep.name)
-                .unwrap()
-                .push(package.name.clone());
         }
     }
 
@@ -49,22 +42,9 @@ pub fn build_tree(metadata: &CargoMetadata) -> CrateNode {
         dependencies: Vec::new(),
     };
 
-    let mut root_crates = Vec::new();
     for crate_name in &workspace {
-        if let Some(deps) = dependents.get(crate_name) {
-            if deps.is_empty() {
-                root_crates.push(crate_name.clone());
-            }
-        }
-    }
-
-    if root_crates.is_empty() {
-        root_crates = workspace.iter().cloned().collect();
-    }
-
-    let mut visited = HashSet::new();
-    for crate_name in root_crates {
-        let subtree = build_tree_recursive(&crate_name, &dependencies, &mut visited);
+        let mut visited = HashSet::new();
+        let subtree = build_tree_recursive(crate_name, &dependencies, &mut visited);
         root.dependencies.push(subtree);
     }
 
@@ -88,9 +68,16 @@ fn build_tree_recursive(
     visited.insert(crate_name.to_string());
 
     if let Some(names) = dependencies.get(crate_name) {
+        let mut seen_deps = HashSet::new();
         for name in names {
-            let child = build_tree_recursive(name, dependencies, visited);
-            tree_node.dependencies.push(child);
+            if seen_deps.contains(name) {
+                continue;
+            }
+
+            seen_deps.insert(name.clone());
+
+            tree_node.dependencies.push(
+                build_tree_recursive(name, dependencies, visited));
         }
     }
 
