@@ -1,0 +1,39 @@
+# cargo-deltabuild configuration file
+# This file controls which heuristics the parser uses to detect file dependencies
+
+[parser]
+# Enable/disable file reference detection from method calls like ::file(), ::from_file(), etc.
+file_refs = true
+
+# List of method names that indicate file loading operations
+# Common patterns: API calls that load files by path
+file_methods = [
+    "file",       # ::file(path, ...)
+    "from_file",  # ::from_file(path, ...)
+    "load",       # ::load(path, ...)
+    "open",       # ::open(path, ...)
+    "read",       # ::read(path, ...)
+    "load_from"   # ::load_from(path, ...)
+]
+
+# Enable/disable detection of include macros like include_str!(), include_bytes!()
+includes = true
+
+# List of macro names that include files at compile time
+include_macros = [
+    "include_str",   # include_str!("file.txt")
+    "include_bytes"  # include_bytes!("file.bin")
+]
+
+# Enable/disable following mod declarations to discover module files
+mods = true
+
+# Enable/disable assume pattern matching for hard-to-detect dependencies
+assume = true
+
+# List of glob patterns to match files and include them as dependencies
+assume_patterns = ["*.proto", "*.snap"]
+
+[git]
+# Remote branch to compare against for detecting changes
+remote_branch = "origin/master"
