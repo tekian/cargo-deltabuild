@@ -18,7 +18,7 @@ pub struct Config {
     pub crate_configs: HashMap<String, ParserConfig>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParserConfig {
     #[serde(default = "default_true")]
     pub file_refs: bool,
@@ -34,6 +34,13 @@ pub struct ParserConfig {
     pub assume: bool,
     #[serde(default)]
     pub assume_patterns: HashSet<String>,
+}
+
+impl Default for ParserConfig {
+    fn default() -> Self {
+        // Use serde's deserialization to get the defaults.
+        toml::from_str("").unwrap()
+    }
 }
 
 fn default_true() -> bool {
