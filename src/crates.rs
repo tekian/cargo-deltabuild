@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Crates {
-    pub crates: HashMap<String, Vec<String>>,
+    crates: HashMap<String, Vec<String>>,
 }
 
 pub fn parse(metadata: &CargoMetadata) -> Crates {
@@ -60,5 +60,9 @@ impl Crates {
         }
 
         dependents
+    }
+
+    pub fn len(&self) -> usize {
+        self.crates.len()
     }
 }

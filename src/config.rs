@@ -14,8 +14,24 @@ pub struct Config {
     #[serde(default)]
     pub parser: ParserConfig,
     pub git: Option<GitConfig>,
+    #[serde(default)]
+    pub files: FilesConfig,
     #[serde(flatten)]
     pub crate_configs: HashMap<String, ParserConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilesConfig {
+    #[serde(default = "default_excludes")]
+    pub exclude_patterns: Vec<String>,
+}
+
+impl Default for FilesConfig {
+    fn default() -> Self {
+        Self {
+            exclude_patterns: default_excludes(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,6 +63,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_excludes() -> Vec<String> {
+    vec![".*".to_string(), "target".to_string()]
+}
+
 fn default_false() -> bool {
     false
 }
@@ -70,6 +90,7 @@ impl Default for Config {
         Self {
             parser: ParserConfig::default(),
             git: None,
+            files: FilesConfig::default(),
             crate_configs: HashMap::new(),
         }
     }
@@ -86,11 +107,16 @@ impl Config {
 }
 
 pub fn load_config(config_path: Option<PathBuf>) -> Result<Config> {
-    if let Some(config_path) = config_path {
-        let content = std::fs::read_to_string(&config_path).map_err(Error::ConfigRead)?;
-        let config: Config = toml::from_str(&content)?;
-        Ok(config)
-    } else {
-        Ok(Config::default())
+    match config_path {
+        Some(path) => {
+            let content =
+                std::fs::read_to_string(&path)
+                    .map_err(Error::ConfigRead)?;
+
+            let config: Config = toml::from_str(&content)?;
+
+            Ok(config)
+        }
+        None => Ok(Config::default()),
     }
 }

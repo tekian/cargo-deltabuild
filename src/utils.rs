@@ -1,7 +1,9 @@
 use encoding_rs::Encoding;
+use glob::Pattern;
 use normpath::PathExt;
 use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
+use std::fs;
 use crate::error::{Error, Result};
 
 pub fn deserialize_from<T: DeserializeOwned>(file_path: &Path) -> Result<T> {
@@ -102,4 +104,66 @@ pub fn resolve_workspace_relative(workspace: &Path, relative_path: &str) -> Opti
             }
         }
     }
+}
+
+pub fn find_files_except_for(dir: &Path, excludes: &[PathBuf], exclude_patterns: &[String]) -> Vec<PathBuf> {
+    let canonical: Vec<PathBuf> = excludes
+        .iter()
+        .filter_map(|p| p.canonicalize().ok())
+        .collect();
+
+    let compiled: Vec<Pattern> = exclude_patterns
+        .iter()
+        .filter_map(|pattern| Pattern::new(pattern).ok())
+        .collect();
+
+    let mut files = Vec::new();
+
+    fn visit(
+        dir: &Path,
+        excludes: &[PathBuf],
+        excludes_canonical: &[PathBuf],
+        exclude_patterns_compiled: &[Pattern],
+        result: &mut Vec<PathBuf>) {
+
+        let Ok(entries) = fs::read_dir(dir) else { return };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+
+            // Check if path matches any glob pattern
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if exclude_patterns_compiled.iter().any(|pattern| pattern.matches(name)) {
+                    continue;
+                }
+            }
+
+            if path.is_dir() {
+                visit(&path, excludes, excludes_canonical, exclude_patterns_compiled, result);
+                continue;
+            }
+
+            if !path.is_file() {
+                continue;
+            }
+
+            if excludes.contains(&path) {
+                continue;
+            }
+
+            let excluded = match path.canonicalize() {
+                Ok(canonical_path) => excludes_canonical.contains(&canonical_path),
+                Err(_) => false,
+            };
+
+            if excluded {
+                continue;
+            }
+
+            result.push(path);
+        }
+    }
+
+    visit(dir, excludes, &canonical, &compiled, &mut files);
+    files
 }

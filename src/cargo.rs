@@ -54,7 +54,7 @@ pub fn metadata(manifest_path: PathBuf) -> Result<CargoMetadata> {
     Ok(metadata)
 }
 
-pub fn filter_workspace_crates<'a>(metadata: &'a CargoMetadata) -> Vec<&'a CargoCrate> {
+pub fn get_workspace_crates<'a>(metadata: &'a CargoMetadata) -> Vec<&'a CargoCrate> {
     metadata
         .packages
         .iter()

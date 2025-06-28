@@ -68,6 +68,21 @@ impl FileNode {
             self.children.push(child);
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.children.iter().map(|i| i.len() + 1).sum::<usize>() + 1
+    }
+
+    pub fn distinct(&self) -> HashSet<PathBuf> {
+        let mut paths = HashSet::new();
+        paths.insert(self.path.clone());
+
+        for child in &self.children {
+            paths.extend(child.distinct());
+        }
+
+        paths
+    }
 }
 
 struct SourceVisitor<'a> {

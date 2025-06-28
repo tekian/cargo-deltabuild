@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::time::Instant;
 
 mod cargo;
 mod config;
@@ -18,9 +19,9 @@ use crate::error::Result;
 
 #[derive(Parser)]
 #[command(name = "cargo-deltabuild")]
-#[command(about = "Tool to find crates affected by feature branch changes.")]
+#[command(about = "Best-effort tool to find affected crates based on git changes.")]
 struct Args {
-    /// Path to configuration file
+    /// Path to configuration file.
     #[arg(short, long)]
     config: Option<PathBuf>,
     /// Path to workspace root.
@@ -32,15 +33,15 @@ struct Args {
 enum Commands {
     /// Run deltabuild and show affected crates.
     Run {
-        /// Path to JSON file containing tree of main branch workspace.
+        /// Path to JSON file containing analysis of reference branch workspace.
         #[arg(long)]
-        main_tree_file: PathBuf,
-        /// Path to JSON file containing tree of feature branch workspace.
+        analysis_file: PathBuf,
+        /// Path to JSON file containing analysis of feature branch workspace.
         #[arg(long)]
-        branch_tree_file: PathBuf,
+        branch_analysis_file: PathBuf,
     },
-    /// Analyze current workspace and produce structure tree.
-    Tree
+    /// Analyze current workspace and produce JSON file.
+    Analyze
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,11 +69,11 @@ fn main() {
 
     match &cli.command {
         Commands::Run {
-            main_tree_file,
-            branch_tree_file,
+            analysis_file: main_tree_file,
+            branch_analysis_file: branch_tree_file,
         } => run(&workspace_path, config, main_tree_file, branch_tree_file),
 
-        Commands::Tree => tree_build(&workspace_path, config)
+        Commands::Analyze => analyze(&workspace_path, config)
     }
 }
 
@@ -138,8 +139,9 @@ fn run(workspace: &PathBuf, config: Config, main_tree_file: &PathBuf, branch_tre
     }
 }
 
-fn tree_build(workspace: &PathBuf, config: Config) {
-    eprintln!("Analyzing workspace..");
+fn analyze(workspace: &PathBuf, config: Config) {
+    let start = Instant::now();
+    eprintln!("Analyzing workspace..\n");
 
     let manifest_path = workspace.join("Cargo.toml");
     let metadata = match cargo::metadata(manifest_path) {
@@ -150,13 +152,17 @@ fn tree_build(workspace: &PathBuf, config: Config) {
         }
     };
 
-    let crates = cargo::filter_workspace_crates(&metadata);
-    let file_tree = files::build_tree(&metadata, &crates, &config);
-    let crate_tree = crates::parse(&metadata);
+    let crates = cargo::get_workspace_crates(&metadata);
+    let files = files::build_tree(&metadata, &crates, &config);
+    let crates = crates::parse(&metadata);
+
+    eprintln!("Found {} crate(s) in the workspace.", crates.len());
+    eprintln!("Found {} file(s) in the workspace.", files.len());
+    eprintln!();
 
     let workspace_tree = WorkspaceTree {
-        files: file_tree,
-        crates: crate_tree,
+        files,
+        crates,
     };
 
     match serde_json::to_string_pretty(&workspace_tree) {
@@ -166,6 +172,26 @@ fn tree_build(workspace: &PathBuf, config: Config) {
             std::process::exit(1);
         }
     }
+
+    let file_paths: Vec<PathBuf> = workspace_tree.files
+        .distinct()
+        .into_iter()
+        .collect();
+
+    eprintln!();
+    eprintln!("CAUTION: The following files are *NOT* considered compilation inputs:");
+
+    let unrelated = utils::find_files_except_for(
+        workspace,
+        &file_paths,
+        &config.files.exclude_patterns);
+
+    for file in unrelated {
+        eprintln!("{}", file.display());
+    }
+
+    let duration = start.elapsed();
+    eprintln!("\nAnalysis finished in {:.2?}", duration);
 }
 
 fn get_affected_crates(
