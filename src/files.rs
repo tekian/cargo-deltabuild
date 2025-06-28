@@ -83,6 +83,40 @@ impl FileNode {
 
         paths
     }
+
+    pub fn find_crates_containing_file(&self, target_file: &PathBuf) -> Vec<String> {
+        fn visit(
+            node: &FileNode,
+            target_file: &PathBuf,
+            current_crate: Option<&str>,
+            results: &mut Vec<String>,
+        ) {
+            let current_crate = if matches!(node.kind, FileKind::Crate) {
+                node.path.parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
+            } else {
+                current_crate
+            };
+
+            if &node.path == target_file {
+                if let Some(crate_name) = current_crate {
+                    let crate_string = crate_name.to_string();
+                    if !results.contains(&crate_string) {
+                        results.push(crate_string);
+                    }
+                }
+            }
+
+            for child in &node.children {
+                visit(child, target_file, current_crate, results);
+            }
+        }
+
+        let mut results = Vec::new();
+        visit(self, target_file, None, &mut results);
+        results
+    }
 }
 
 struct SourceVisitor<'a> {

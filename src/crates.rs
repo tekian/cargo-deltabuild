@@ -50,16 +50,50 @@ impl Crates {
         self.crates.get(crate_name)
     }
 
-    pub fn get_dependents(&self, target_crate: &str) -> Vec<String> {
+    pub fn get_dependents(&self, crate_name: &str) -> Option<Vec<String>> {
+        if !self.crates.contains_key(crate_name) {
+            return None;
+        }
+
         let mut dependents = Vec::new();
 
-        for (crate_name, deps) in &self.crates {
-            if deps.contains(&target_crate.to_string()) {
-                dependents.push(crate_name.clone());
+        for (name, deps) in &self.crates {
+            if deps.contains(&crate_name.to_string()) {
+                dependents.push(name.clone());
             }
         }
 
-        dependents
+        Some(dependents)
+    }
+
+    pub fn get_dependencies_transitive(&self, crate_name: &str) -> Option<Vec<String>> {
+        if !self.crates.contains_key(crate_name) {
+            return None;
+        }
+
+        let mut all_dependencies = HashSet::new();
+        let mut to_visit = vec![crate_name.to_string()];
+        let mut visited = HashSet::new();
+
+        while let Some(current_crate) = to_visit.pop() {
+            if visited.contains(&current_crate) {
+                continue;
+            }
+            visited.insert(current_crate.clone());
+
+            match self.get_dependencies(&current_crate) {
+                Some(dependencies) => {
+                    for dependency in dependencies {
+                        if all_dependencies.insert(dependency.clone()) {
+                            to_visit.push(dependency.clone());
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+
+        Some(all_dependencies.into_iter().collect())
     }
 
     pub fn len(&self) -> usize {

@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -46,9 +47,7 @@ enum Commands {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunResult {
-    #[serde(rename = "AffectedCrateChain")]
-    pub affected_crate_chain: Vec<String>,
-    #[serde(rename = "AffectedProjects")]
+    #[serde(rename = "AffectedCrates")]
     pub affected_crates: Vec<String>,
 }
 
@@ -60,10 +59,13 @@ pub struct WorkspaceTree {
 
 fn main() {
     let cli = Args::parse();
-    let config = config::load_config(cli.config.clone()).unwrap_or_else(|e| {
-        eprintln!("Error loading config: {}", e);
-        std::process::exit(1);
-    });
+    let config = match config::load_config(cli.config.clone()) {
+        Ok(i) => i,
+        Err(e) => {
+            eprintln!("Error loading config: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     let workspace_path = std::env::current_dir().unwrap();
 
@@ -74,68 +76,6 @@ fn main() {
         } => run(&workspace_path, config, main_tree_file, branch_tree_file),
 
         Commands::Analyze => analyze(&workspace_path, config)
-    }
-}
-
-fn run(workspace: &PathBuf, config: Config, main_tree_file: &PathBuf, branch_tree_file: &PathBuf) {
-    eprintln!("Running deltabuild..\n");
-    eprintln!("Looking up git changes..\n");
-
-    let diff = match git::diff(workspace, config.git) {
-        Ok(i) => i,
-        Err(e) => {
-            eprintln!("Error creating diff: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    if diff.changed.is_empty() && diff.deleted.is_empty() {
-        eprintln!("No file has been changed or deleted, quitting.");
-        std::process::exit(0);
-    }
-
-    for changed in &diff.changed {
-        eprintln!("Changed file: {:?}", &changed);
-    }
-
-    for deleted in &diff.deleted {
-        eprintln!("Deleted file: {:?}", &deleted);
-    }
-
-    eprintln!();
-    eprintln!("Using main structure json   : {}", main_tree_file.display());
-    eprintln!("Using branch structure json : {}", branch_tree_file.display());
-
-    let main_tree: WorkspaceTree = match utils::deserialize_from(main_tree_file) {
-        Ok(tree) => tree,
-        Err(e) => {
-            eprintln!("Error loading current workspace tree: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    let branch_tree: WorkspaceTree = match utils::deserialize_from(branch_tree_file) {
-        Ok(tree) => tree,
-        Err(e) => {
-            eprintln!("Error loading branch workspace tree: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    let result = match get_affected_crates(&main_tree, &branch_tree, &diff) {
-        Ok(i) => i,
-        Err(e) => {
-            eprintln!("Error calculating affected crates: {}", e);
-            std::process::exit(1);
-        },
-    };
-
-    match serde_json::to_string_pretty(&result) {
-        Ok(json_output) => println!("{}", json_output),
-        Err(e) => {
-            eprintln!("Error serializing result to JSON: {}", e);
-            std::process::exit(1);
-        }
     }
 }
 
@@ -194,10 +134,142 @@ fn analyze(workspace: &PathBuf, config: Config) {
     eprintln!("\nAnalysis finished in {:.2?}", duration);
 }
 
+fn run(workspace: &PathBuf, config: Config, main_tree_file: &PathBuf, branch_tree_file: &PathBuf) {
+    eprintln!("Running deltabuild..\n");
+    eprintln!("Looking up git changes..\n");
+
+    let diff = match git::diff(workspace, config.git) {
+        Ok(i) => i,
+        Err(e) => {
+            eprintln!("Error creating diff: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    if diff.changed.is_empty() && diff.deleted.is_empty() {
+        eprintln!("No file has been changed or deleted, quitting.");
+        std::process::exit(0);
+    }
+
+    for changed in &diff.changed {
+        eprintln!("Changed file: {:?}", &changed);
+    }
+
+    for deleted in &diff.deleted {
+        eprintln!("Deleted file: {:?}", &deleted);
+    }
+
+    eprintln!();
+    eprintln!("Using main structure json   : {}", main_tree_file.display());
+    eprintln!("Using branch structure json : {}", branch_tree_file.display());
+    eprintln!();
+
+    let main_tree: WorkspaceTree = match utils::deser_json(main_tree_file) {
+        Ok(tree) => tree,
+        Err(e) => {
+            eprintln!("Error loading current workspace tree: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let branch_tree: WorkspaceTree = match utils::deser_json(branch_tree_file) {
+        Ok(tree) => tree,
+        Err(e) => {
+            eprintln!("Error loading branch workspace tree: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let result = match get_affected_crates(&main_tree, &branch_tree, &diff) {
+        Ok(i) => i,
+        Err(e) => {
+            eprintln!("Error calculating affected crates: {}", e);
+            std::process::exit(1);
+        },
+    };
+
+    match serde_json::to_string_pretty(&result) {
+        Ok(json_output) => println!("{}", json_output),
+        Err(e) => {
+            eprintln!("Error serializing result to JSON: {}", e);
+            std::process::exit(1);
+        }
+    }
+
+    let total_crates = branch_tree.crates.len();
+    let affected_count = result.affected_crates.len();
+    let percentage = if total_crates > 0 {
+        (affected_count as f64 / total_crates as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    eprintln!();
+    eprintln!("Building {} out of {} crates ({:.1}%)", affected_count, total_crates, percentage);
+}
+
 fn get_affected_crates(
     main_tree: &WorkspaceTree,
     branch_tree: &WorkspaceTree,
     diff: &GitDiff,
 ) -> Result<RunResult> {
-    todo!();
+    let mut affected_crates = HashSet::new();
+
+    for deleted_file in &diff.deleted {
+        let crates_for_file = main_tree
+            .files.find_crates_containing_file(deleted_file);
+
+        for crate_name in crates_for_file {
+            affected_crates.insert(crate_name);
+        }
+    }
+
+    for changed_file in &diff.changed {
+        let crates_for_file = branch_tree
+            .files.find_crates_containing_file(changed_file);
+
+        for crate_name in crates_for_file {
+            affected_crates.insert(crate_name);
+        }
+    }
+
+    let main_files = main_tree.files.distinct();
+    let branch_files = branch_tree.files.distinct();
+
+    for new_file in branch_files.difference(&main_files) {
+        let crates_for_file = branch_tree
+            .files.find_crates_containing_file(new_file);
+
+        for crate_name in crates_for_file {
+            affected_crates.insert(crate_name);
+        }
+    }
+
+    let mut all_affected_crates = HashSet::new();
+
+    for crate_name in &affected_crates {
+        all_affected_crates.insert(crate_name.clone());
+
+        match branch_tree.crates.get_dependents(crate_name) {
+            Some(immediate_dependents) => {
+                for dependent in immediate_dependents {
+                    all_affected_crates.insert(dependent);
+                }
+            }
+            None => {}
+        }
+
+        match branch_tree.crates.get_dependencies_transitive(crate_name) {
+            Some(transitive_deps) => {
+                for dependency in transitive_deps {
+                    all_affected_crates.insert(dependency);
+                }
+            }
+            None => {}
+        }
+    }
+
+    Ok(RunResult {
+        affected_crates: all_affected_crates.into_iter().collect(),
+    })
 }

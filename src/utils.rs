@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use std::fs;
 use crate::error::{Error, Result};
 
-pub fn deserialize_from<T: DeserializeOwned>(file_path: &Path) -> Result<T> {
+pub fn deser_json<T: DeserializeOwned>(file_path: &Path) -> Result<T> {
     let file_path_str = file_path.display().to_string();
 
     let bytes = std::fs::read(file_path)
