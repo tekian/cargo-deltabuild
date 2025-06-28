@@ -3,12 +3,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CrateNode {
-    pub name: String,
-    pub dependencies: Vec<CrateNode>,
+pub struct Crates {
+    pub crates: HashMap<String, Vec<String>>,
 }
 
-pub fn build_tree(metadata: &CargoMetadata) -> CrateNode {
+pub fn parse(metadata: &CargoMetadata) -> Crates {
     let mut workspace = HashSet::new();
     let mut dependencies = HashMap::new();
 
@@ -30,57 +29,36 @@ pub fn build_tree(metadata: &CargoMetadata) -> CrateNode {
                 continue;
             }
 
-            dependencies
-                .get_mut(&package.name)
-                .unwrap()
-                .push(dep.name.clone());
+            let package_deps =
+                dependencies
+                    .get_mut(&package.name)
+                    .unwrap();
+
+            if !package_deps.contains(&dep.name) {
+                package_deps.push(dep.name.clone());
+            }
         }
     }
 
-    let mut root = CrateNode {
-        name: "Workspace".to_string(),
-        dependencies: Vec::new(),
-    };
-
-    for crate_name in &workspace {
-        let mut visited = HashSet::new();
-        let subtree = build_tree_recursive(crate_name, &dependencies, &mut visited);
-        root.dependencies.push(subtree);
+    Crates {
+        crates: dependencies,
     }
-
-    root
 }
 
-fn build_tree_recursive(
-    crate_name: &str,
-    dependencies: &HashMap<String, Vec<String>>,
-    visited: &mut HashSet<String>,
-) -> CrateNode {
-    let mut tree_node = CrateNode {
-        name: crate_name.to_string(),
-        dependencies: Vec::new(),
-    };
-
-    if visited.contains(crate_name) {
-        return tree_node; // Avoid cycles
+impl Crates {
+    pub fn get_dependencies(&self, crate_name: &str) -> Option<&Vec<String>> {
+        self.crates.get(crate_name)
     }
 
-    visited.insert(crate_name.to_string());
+    pub fn get_dependents(&self, target_crate: &str) -> Vec<String> {
+        let mut dependents = Vec::new();
 
-    if let Some(names) = dependencies.get(crate_name) {
-        let mut seen_deps = HashSet::new();
-        for name in names {
-            if seen_deps.contains(name) {
-                continue;
+        for (crate_name, deps) in &self.crates {
+            if deps.contains(&target_crate.to_string()) {
+                dependents.push(crate_name.clone());
             }
-
-            seen_deps.insert(name.clone());
-
-            tree_node.dependencies.push(
-                build_tree_recursive(name, dependencies, visited));
         }
-    }
 
-    visited.remove(crate_name);
-    tree_node
+        dependents
+    }
 }
