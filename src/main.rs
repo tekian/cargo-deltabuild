@@ -34,12 +34,12 @@ struct Args {
 enum Commands {
     /// Run deltabuild and show affected crates.
     Run {
-        /// Path to JSON file containing analysis of reference branch workspace.
+        /// Path to JSON file containing workspace analysis of the baseline/reference branch.
         #[arg(long)]
-        analysis_file: PathBuf,
-        /// Path to JSON file containing analysis of feature branch workspace.
+        baseline_analysis: PathBuf,
+        /// Path to JSON file containing workspace analysis of the current/target branch.
         #[arg(long)]
-        branch_analysis_file: PathBuf,
+        current_analysis: PathBuf,
     },
     /// Analyze current workspace and produce JSON file.
     Analyze
@@ -71,9 +71,9 @@ fn main() {
 
     match &cli.command {
         Commands::Run {
-            analysis_file: main_tree_file,
-            branch_analysis_file: branch_tree_file,
-        } => run(&workspace_path, config, main_tree_file, branch_tree_file),
+            baseline_analysis,
+            current_analysis,
+        } => run(&workspace_path, config, baseline_analysis, current_analysis),
 
         Commands::Analyze => analyze(&workspace_path, config)
     }
@@ -134,7 +134,7 @@ fn analyze(workspace: &PathBuf, config: Config) {
     eprintln!("\nAnalysis finished in {:.2?}", duration);
 }
 
-fn run(workspace: &PathBuf, config: Config, main_tree_file: &PathBuf, branch_tree_file: &PathBuf) {
+fn run(workspace: &PathBuf, config: Config, baseline_analysis: &PathBuf, current_analysis: &PathBuf) {
     eprintln!("Running deltabuild..\n");
     eprintln!("Looking up git changes..\n");
 
@@ -160,11 +160,11 @@ fn run(workspace: &PathBuf, config: Config, main_tree_file: &PathBuf, branch_tre
     }
 
     eprintln!();
-    eprintln!("Using main structure json   : {}", main_tree_file.display());
-    eprintln!("Using branch structure json : {}", branch_tree_file.display());
+    eprintln!("Using baseline analysis   : {}", baseline_analysis.display());
+    eprintln!("Using current analysis    : {}", current_analysis.display());
     eprintln!();
 
-    let main_tree: WorkspaceTree = match utils::deser_json(main_tree_file) {
+    let baseline_tree: WorkspaceTree = match utils::deser_json(baseline_analysis) {
         Ok(tree) => tree,
         Err(e) => {
             eprintln!("Error loading current workspace tree: {}", e);
@@ -172,7 +172,7 @@ fn run(workspace: &PathBuf, config: Config, main_tree_file: &PathBuf, branch_tre
         }
     };
 
-    let branch_tree: WorkspaceTree = match utils::deser_json(branch_tree_file) {
+    let current_tree: WorkspaceTree = match utils::deser_json(current_analysis) {
         Ok(tree) => tree,
         Err(e) => {
             eprintln!("Error loading branch workspace tree: {}", e);
@@ -180,7 +180,7 @@ fn run(workspace: &PathBuf, config: Config, main_tree_file: &PathBuf, branch_tre
         }
     };
 
-    let result = match get_affected_crates(&main_tree, &branch_tree, &diff) {
+    let result = match get_affected_crates(&baseline_tree, &current_tree, &diff) {
         Ok(i) => i,
         Err(e) => {
             eprintln!("Error calculating affected crates: {}", e);
@@ -196,7 +196,7 @@ fn run(workspace: &PathBuf, config: Config, main_tree_file: &PathBuf, branch_tre
         }
     }
 
-    let total_crates = branch_tree.crates.len();
+    let total_crates = current_tree.crates.len();
     let affected_count = result.affected_crates.len();
     let percentage = if total_crates > 0 {
         (affected_count as f64 / total_crates as f64) * 100.0
@@ -209,14 +209,14 @@ fn run(workspace: &PathBuf, config: Config, main_tree_file: &PathBuf, branch_tre
 }
 
 fn get_affected_crates(
-    main_tree: &WorkspaceTree,
-    branch_tree: &WorkspaceTree,
-    diff: &GitDiff,
+    baseline_tree: &WorkspaceTree,
+    current_tree: &WorkspaceTree,
+    git_diff: &GitDiff,
 ) -> Result<RunResult> {
     let mut affected_crates = HashSet::new();
 
-    for deleted_file in &diff.deleted {
-        let crates_for_file = main_tree
+    for deleted_file in &git_diff.deleted {
+        let crates_for_file = baseline_tree
             .files.find_crates_containing_file(deleted_file);
 
         for crate_name in crates_for_file {
@@ -224,8 +224,8 @@ fn get_affected_crates(
         }
     }
 
-    for changed_file in &diff.changed {
-        let crates_for_file = branch_tree
+    for changed_file in &git_diff.changed {
+        let crates_for_file = current_tree
             .files.find_crates_containing_file(changed_file);
 
         for crate_name in crates_for_file {
@@ -233,11 +233,11 @@ fn get_affected_crates(
         }
     }
 
-    let main_files = main_tree.files.distinct();
-    let branch_files = branch_tree.files.distinct();
+    let main_files = baseline_tree.files.distinct();
+    let branch_files = current_tree.files.distinct();
 
     for new_file in branch_files.difference(&main_files) {
-        let crates_for_file = branch_tree
+        let crates_for_file = current_tree
             .files.find_crates_containing_file(new_file);
 
         for crate_name in crates_for_file {
@@ -250,7 +250,7 @@ fn get_affected_crates(
     for crate_name in &affected_crates {
         all_affected_crates.insert(crate_name.clone());
 
-        match branch_tree.crates.get_dependents(crate_name) {
+        match current_tree.crates.get_dependents(crate_name) {
             Some(immediate_dependents) => {
                 for dependent in immediate_dependents {
                     all_affected_crates.insert(dependent);
@@ -259,7 +259,7 @@ fn get_affected_crates(
             None => {}
         }
 
-        match branch_tree.crates.get_dependencies_transitive(crate_name) {
+        match current_tree.crates.get_dependencies_transitive(crate_name) {
             Some(transitive_deps) => {
                 for dependency in transitive_deps {
                     all_affected_crates.insert(dependency);
