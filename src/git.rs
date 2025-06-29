@@ -1,6 +1,7 @@
-use git2::Repository;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::process::Command;
+use normpath::PathExt;
 
 use crate::error::*;
 
@@ -15,48 +16,58 @@ pub struct GitDiff {
     pub deleted: Vec<PathBuf>,
 }
 
-/// Load changed and deleted files from git diff
 pub fn diff(workspace_path: &Path, config: Option<GitConfig>) -> Result<GitDiff> {
     let remote_branch = config
         .as_ref()
         .and_then(|d| d.remote_branch.as_deref())
         .unwrap_or("origin/master");
 
-    let repository = Repository::open(workspace_path)?;
-    let repository_path = repository.workdir().ok_or(Error::from("foo"))?;
+    let merge_base_output = Command::new("git")
+        .arg("merge-base")
+        .arg("HEAD")
+        .arg(remote_branch)
+        .current_dir(workspace_path)
+        .output()
+        .map_err(|e| Error::Git(format!("Failed to run git merge-base: {}", e)))?;
 
-    let remote_ref = repository
-        .find_reference(&format!("refs/remotes/{}", remote_branch))
-        .or_else(|_| repository.find_reference(&format!("refs/heads/{}", remote_branch)))?;
+    if !merge_base_output.status.success() {
+        let stderr = String::from_utf8_lossy(&merge_base_output.stderr);
+        return Err(Error::Git(format!("git merge-base failed: {}", stderr)));
+    }
 
-    let remote_commit = remote_ref.peel_to_commit()?;
-    let head_commit = repository.head()?.peel_to_commit()?;
+    let merge_base = String::from_utf8(merge_base_output.stdout)
+        .map_err(|e| Error::Git(format!("Invalid UTF-8 in git merge-base output: {}", e)))?
+        .trim()
+        .to_string();
 
-    let merge_base_oid = repository.merge_base(remote_commit.id(), head_commit.id())?;
-    let merge_base_commit = repository.find_commit(merge_base_oid)?;
+    let diff_output = Command::new("git")
+        .arg("diff")
+        .arg("--name-only")
+        .arg(format!("{}..HEAD", merge_base))
+        .current_dir(workspace_path)
+        .output()
+        .map_err(|e| Error::Git(format!("Failed to run git diff: {}", e)))?;
 
-    let merge_base_tree = merge_base_commit.tree()?;
-    let head_tree = head_commit.tree()?;
+    if !diff_output.status.success() {
+        let stderr = String::from_utf8_lossy(&diff_output.stderr);
+        return Err(Error::Git(format!("git diff failed: {}", stderr)));
+    }
 
-    let diff = repository.diff_tree_to_tree(Some(&merge_base_tree), Some(&head_tree), None)?;
+    let diff_output_str = String::from_utf8(diff_output.stdout)
+        .map_err(|e| Error::Git(format!("Invalid UTF-8 in git diff output: {}", e)))?;
 
-    let mut all_file_paths = Vec::new();
-
-    diff.foreach(
-        &mut |delta, _progress| {
-            if let Some(file) = delta.new_file().path() {
-                let file_path = repository_path.join(file);
-
-                all_file_paths.push(file_path);
+    let all_file_paths: Vec<PathBuf> = diff_output_str
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let path = workspace_path.join(line.trim());
+            match path.normalize() {
+                Ok(normalized) => normalized.into_path_buf(),
+                Err(_) => path,
             }
-            true
-        },
-        None,
-        None,
-        None,
-    )?;
+        })
+        .collect();
 
-    // Separate into changed and deleted files
     let changed: Vec<PathBuf> = all_file_paths
         .iter()
         .filter(|path| path.exists())
