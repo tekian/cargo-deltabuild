@@ -36,10 +36,10 @@ enum Commands {
     Run {
         /// Path to JSON file containing workspace analysis of the baseline/reference branch.
         #[arg(long)]
-        baseline_analysis: PathBuf,
+        baseline: PathBuf,
         /// Path to JSON file containing workspace analysis of the current/target branch.
         #[arg(long)]
-        current_analysis: PathBuf,
+        current: PathBuf,
     },
     /// Analyze current workspace and produce JSON file.
     Analyze
@@ -71,9 +71,9 @@ fn main() {
 
     match &cli.command {
         Commands::Run {
-            baseline_analysis,
-            current_analysis,
-        } => run(&workspace_path, config, baseline_analysis, current_analysis),
+            baseline,
+            current,
+        } => run(&workspace_path, config, baseline, current),
 
         Commands::Analyze => analyze(&workspace_path, config)
     }
@@ -93,8 +93,10 @@ fn analyze(workspace: &PathBuf, config: Config) {
     };
 
     let crates = cargo::get_workspace_crates(&metadata);
-    let files = files::build_tree(&metadata, &crates, &config);
+    let mut files = files::build_tree(&metadata, &crates, &config);
     let crates = crates::parse(&metadata);
+
+    files.to_relative_paths(workspace);
 
     eprintln!("Found {} crate(s) in the workspace.", crates.len());
     eprintln!("Found {} file(s) in the workspace.", files.len());
@@ -134,7 +136,7 @@ fn analyze(workspace: &PathBuf, config: Config) {
     eprintln!("\nAnalysis finished in {:.2?}", duration);
 }
 
-fn run(workspace: &PathBuf, config: Config, baseline_analysis: &PathBuf, current_analysis: &PathBuf) {
+fn run(workspace: &PathBuf, config: Config, baseline: &PathBuf, current: &PathBuf) {
     eprintln!("Running deltabuild..\n");
     eprintln!("Looking up git changes..\n");
 
@@ -160,11 +162,11 @@ fn run(workspace: &PathBuf, config: Config, baseline_analysis: &PathBuf, current
     }
 
     eprintln!();
-    eprintln!("Using baseline analysis   : {}", baseline_analysis.display());
-    eprintln!("Using current analysis    : {}", current_analysis.display());
+    eprintln!("Using baseline analysis   : {}", baseline.display());
+    eprintln!("Using current analysis    : {}", current.display());
     eprintln!();
 
-    let baseline_tree: WorkspaceTree = match utils::deser_json(baseline_analysis) {
+    let baseline_tree: WorkspaceTree = match utils::deser_json(baseline) {
         Ok(tree) => tree,
         Err(e) => {
             eprintln!("Error loading current workspace tree: {}", e);
@@ -172,7 +174,7 @@ fn run(workspace: &PathBuf, config: Config, baseline_analysis: &PathBuf, current
         }
     };
 
-    let current_tree: WorkspaceTree = match utils::deser_json(current_analysis) {
+    let current_tree: WorkspaceTree = match utils::deser_json(current) {
         Ok(tree) => tree,
         Err(e) => {
             eprintln!("Error loading branch workspace tree: {}", e);

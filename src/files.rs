@@ -69,6 +69,17 @@ impl FileNode {
         }
     }
 
+    pub fn to_relative_paths(&mut self, workspace_root: &Path) {
+        self.path = match self.path.strip_prefix(workspace_root) {
+            Ok(relative) => relative.to_path_buf(),
+            Err(_) => self.path.clone(),
+        };
+
+        for child in &mut self.children {
+            child.to_relative_paths(workspace_root);
+        }
+    }
+
     pub fn len(&self) -> usize {
         self.children.iter().map(|i| i.len() + 1).sum::<usize>() + 1
     }
