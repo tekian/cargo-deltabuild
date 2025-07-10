@@ -207,7 +207,7 @@ fn run(workspace: &PathBuf, config: Config, baseline: &PathBuf, current: &PathBu
     };
 
     eprintln!();
-    eprintln!("Building {} out of {} crates ({:.1}%)", affected_count, total_crates, percentage);
+    eprintln!("Impacts {} out of {} crates ({:.1}%)", affected_count, total_crates, percentage);
 }
 
 fn get_affected_crates(
