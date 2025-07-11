@@ -7,16 +7,16 @@ use std::time::Instant;
 mod cargo;
 mod config;
 mod crates;
+mod error;
 mod files;
 mod git;
-mod error;
 mod utils;
 
 use crate::config::Config;
 use crate::crates::Crates;
+use crate::error::Result;
 use crate::files::FileNode;
 use crate::git::GitDiff;
-use crate::error::Result;
 
 #[derive(Parser)]
 #[command(name = "cargo-deltabuild")]
@@ -42,7 +42,7 @@ enum Commands {
         current: PathBuf,
     },
     /// Analyze current workspace and produce JSON file.
-    Analyze
+    Analyze,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,24 +67,18 @@ fn main() {
         }
     };
 
-    let workspace_path = std::env::current_dir().unwrap();
-
     match &cli.command {
-        Commands::Run {
-            baseline,
-            current,
-        } => run(&workspace_path, config, baseline, current),
+        Commands::Run { baseline, current } => run(config, baseline, current),
 
-        Commands::Analyze => analyze(&workspace_path, config)
+        Commands::Analyze => analyze(config),
     }
 }
 
-fn analyze(workspace: &PathBuf, config: Config) {
+fn analyze(config: Config) {
     let start = Instant::now();
-    eprintln!("Analyzing workspace..\n");
+    eprintln!("Analyzing workspace..");
 
-    let manifest_path = workspace.join("Cargo.toml");
-    let metadata = match cargo::metadata(manifest_path) {
+    let metadata = match cargo::metadata() {
         Ok(metadata) => metadata,
         Err(e) => {
             eprintln!("Error getting cargo metadata: {}", e);
@@ -92,20 +86,32 @@ fn analyze(workspace: &PathBuf, config: Config) {
         }
     };
 
+    let workspace_root = &metadata.workspace_root;
+
+    let git_root = match git::get_top_level() {
+        Ok(root) => root,
+        Err(e) => {
+            eprintln!("Error getting git root: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    eprintln!();
+    eprintln!("Detected Git root        : {}", git_root.display());
+    eprintln!("Detected Cargo workspace : {}", workspace_root.display());
+    eprintln!();
+
     let crates = cargo::get_workspace_crates(&metadata);
     let mut files = files::build_tree(&metadata, &crates, &config);
     let crates = crates::parse(&metadata);
 
-    files.to_relative_paths(workspace);
+    files.to_relative_paths(&git_root);
 
     eprintln!("Found {} crate(s) in the workspace.", crates.len());
     eprintln!("Found {} file(s) in the workspace.", files.len());
     eprintln!();
 
-    let workspace_tree = WorkspaceTree {
-        files,
-        crates,
-    };
+    let workspace_tree = WorkspaceTree { files, crates };
 
     match serde_json::to_string_pretty(&workspace_tree) {
         Ok(json_output) => println!("{}", json_output),
@@ -115,18 +121,13 @@ fn analyze(workspace: &PathBuf, config: Config) {
         }
     }
 
-    let file_paths: Vec<PathBuf> = workspace_tree.files
-        .distinct()
-        .into_iter()
-        .collect();
+    let file_paths: Vec<PathBuf> = workspace_tree.files.distinct().into_iter().collect();
 
     eprintln!();
     eprintln!("CAUTION: The following files are *NOT* considered compilation inputs:");
 
-    let unrelated = utils::find_files_except_for(
-        workspace,
-        &file_paths,
-        &config.files.exclude_patterns);
+    let unrelated =
+        utils::find_files_except_for(workspace_root, &file_paths, &config.files.exclude_patterns);
 
     for file in unrelated {
         eprintln!("{}", file.display());
@@ -136,11 +137,21 @@ fn analyze(workspace: &PathBuf, config: Config) {
     eprintln!("\nAnalysis finished in {:.2?}", duration);
 }
 
-fn run(workspace: &PathBuf, config: Config, baseline: &PathBuf, current: &PathBuf) {
+fn run(config: Config, baseline: &PathBuf, current: &PathBuf) {
     eprintln!("Running deltabuild..\n");
-    eprintln!("Looking up git changes..\n");
 
-    let diff = match git::diff(workspace, config.git) {
+    // Get git root to ensure we're working with consistent path bases
+    let git_root = match git::get_top_level() {
+        Ok(root) => root,
+        Err(e) => {
+            eprintln!("Error getting git root: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    eprintln!("Looking up git changes..");
+
+    let diff = match git::diff(&git_root, config.git) {
         Ok(i) => i,
         Err(e) => {
             eprintln!("Error creating diff: {}", e);
@@ -154,16 +165,16 @@ fn run(workspace: &PathBuf, config: Config, baseline: &PathBuf, current: &PathBu
     }
 
     for changed in &diff.changed {
-        eprintln!("Changed file: {:?}", &changed);
+        eprintln!("Changed file: {}", &changed.display());
     }
 
     for deleted in &diff.deleted {
-        eprintln!("Deleted file: {:?}", &deleted);
+        eprintln!("Deleted file: {}", &deleted.display());
     }
 
     eprintln!();
-    eprintln!("Using baseline analysis   : {}", baseline.display());
-    eprintln!("Using current analysis    : {}", current.display());
+    eprintln!("Using baseline analysis : {}", baseline.display());
+    eprintln!("Using current analysis  : {}", current.display());
     eprintln!();
 
     let baseline_tree: WorkspaceTree = match utils::deser_json(baseline) {
@@ -187,7 +198,7 @@ fn run(workspace: &PathBuf, config: Config, baseline: &PathBuf, current: &PathBu
         Err(e) => {
             eprintln!("Error calculating affected crates: {}", e);
             std::process::exit(1);
-        },
+        }
     };
 
     match serde_json::to_string_pretty(&result) {
@@ -207,7 +218,10 @@ fn run(workspace: &PathBuf, config: Config, baseline: &PathBuf, current: &PathBu
     };
 
     eprintln!();
-    eprintln!("Impacts {} out of {} crates ({:.1}%)", affected_count, total_crates, percentage);
+    eprintln!(
+        "Impacts {} out of {} crates ({:.1}%)",
+        affected_count, total_crates, percentage
+    );
 }
 
 fn get_affected_crates(
@@ -219,7 +233,8 @@ fn get_affected_crates(
 
     for deleted_file in &git_diff.deleted {
         let crates_for_file = baseline_tree
-            .files.find_crates_containing_file(deleted_file);
+            .files
+            .find_crates_containing_file(deleted_file);
 
         for crate_name in crates_for_file {
             affected_crates.insert(crate_name);
@@ -227,8 +242,7 @@ fn get_affected_crates(
     }
 
     for changed_file in &git_diff.changed {
-        let crates_for_file = current_tree
-            .files.find_crates_containing_file(changed_file);
+        let crates_for_file = current_tree.files.find_crates_containing_file(changed_file);
 
         for crate_name in crates_for_file {
             affected_crates.insert(crate_name);
@@ -239,8 +253,7 @@ fn get_affected_crates(
     let branch_files = current_tree.files.distinct();
 
     for new_file in branch_files.difference(&main_files) {
-        let crates_for_file = current_tree
-            .files.find_crates_containing_file(new_file);
+        let crates_for_file = current_tree.files.find_crates_containing_file(new_file);
 
         for crate_name in crates_for_file {
             affected_crates.insert(crate_name);

@@ -29,10 +29,7 @@ pub fn parse(metadata: &CargoMetadata) -> Crates {
                 continue;
             }
 
-            let package_deps =
-                dependencies
-                    .get_mut(&package.name)
-                    .unwrap();
+            let package_deps = dependencies.get_mut(&package.name).unwrap();
 
             if !package_deps.contains(&dep.name) {
                 package_deps.push(dep.name.clone());

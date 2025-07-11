@@ -109,9 +109,7 @@ impl Config {
 pub fn load_config(config_path: Option<PathBuf>) -> Result<Config> {
     match config_path {
         Some(path) => {
-            let content =
-                std::fs::read_to_string(&path)
-                    .map_err(Error::ConfigRead)?;
+            let content = std::fs::read_to_string(&path).map_err(Error::ConfigRead)?;
 
             let config: Config = toml::from_str(&content)?;
 

@@ -103,7 +103,8 @@ impl FileNode {
             results: &mut Vec<String>,
         ) {
             let current_crate = if matches!(node.kind, FileKind::Crate) {
-                node.path.parent()
+                node.path
+                    .parent()
                     .and_then(|p| p.file_name())
                     .and_then(|n| n.to_str())
             } else {
@@ -215,7 +216,8 @@ impl<'a, 'ast> Visit<'ast> for SourceVisitor<'a> {
             } else if self.current_path.len() == 1 {
                 self.mods.push(mod_name);
             } else {
-                let parent = self.current_path
+                let parent = self
+                    .current_path
                     .iter()
                     .take(self.current_path.len() - 1)
                     .cloned()
@@ -357,10 +359,7 @@ fn build_file_node(
         return node;
     };
 
-    let file_stem = file_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("");
+    let file_stem = file_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
 
     let maybe_mod_dir = base_dir.join(file_stem);
     let actual_base = if maybe_mod_dir.exists() && maybe_mod_dir.is_dir() {
@@ -373,8 +372,8 @@ fn build_file_node(
         let mod_files = resolve_mod_files(&actual_base, &visitor.mods);
 
         for mod_file in mod_files {
-            let mut child_node = build_file_node(
-                &mod_file, visited, workspace_root, root_config, crate_name);
+            let mut child_node =
+                build_file_node(&mod_file, visited, workspace_root, root_config, crate_name);
 
             child_node.kind = FileKind::Module;
             node.add_child(child_node);
@@ -386,17 +385,11 @@ fn build_file_node(
                 parent_dir = parent_dir.join(component);
             }
 
-            let nested_mod_files = resolve_mod_files
-                (&parent_dir, &[nested_mod_name.clone()]);
+            let nested_mod_files = resolve_mod_files(&parent_dir, &[nested_mod_name.clone()]);
 
             for mod_file in nested_mod_files {
-                let mut child_node = build_file_node(
-                    &mod_file,
-                    visited,
-                    workspace_root,
-                    root_config,
-                    crate_name
-                );
+                let mut child_node =
+                    build_file_node(&mod_file, visited, workspace_root, root_config, crate_name);
 
                 child_node.kind = FileKind::Module;
                 node.add_child(child_node);
@@ -418,21 +411,17 @@ fn build_file_node(
     let includes = utils::resolve_includes(file_path, &visitor.includes);
 
     for include in includes {
-        node.add_child(
-            FileNode::new(include, FileKind::MacroInclude));
+        node.add_child(FileNode::new(include, FileKind::MacroInclude));
     }
 
     for file_ref in &visitor.file_refs {
         let maybe_path = utils::resolve(file_path, file_ref);
         let resolved_path = maybe_path.or_else(|| {
-            workspace_root
-                .and_then(|ws|
-                    utils::resolve_workspace_relative(ws, file_ref))
+            workspace_root.and_then(|ws| utils::resolve_workspace_relative(ws, file_ref))
         });
 
         if let Some(path) = resolved_path {
-            node.add_child(
-                FileNode::new(path, FileKind::FileReference));
+            node.add_child(FileNode::new(path, FileKind::FileReference));
         }
     }
 
@@ -466,12 +455,10 @@ pub fn build_tree(metadata: &CargoMetadata, crates: &[&CargoCrate], config: &Con
     let mut root_node = FileNode::new(root_path, root_kind);
 
     for crate_ in crates {
-        let mut node = FileNode::new(
-            crate_.manifest_path.clone(), FileKind::Crate);
+        let mut node = FileNode::new(crate_.manifest_path.clone(), FileKind::Crate);
 
         for target in &crate_.targets {
-            let mut target_node = FileNode::new(
-                target.src_path.clone(), FileKind::Target);
+            let mut target_node = FileNode::new(target.src_path.clone(), FileKind::Target);
 
             let source_tree = build_file_node(
                 &target.src_path,
@@ -491,12 +478,10 @@ pub fn build_tree(metadata: &CargoMetadata, crates: &[&CargoCrate], config: &Con
         let parser_config = config.crate_config(&crate_.name);
         if parser_config.assume && !parser_config.assume_patterns.is_empty() {
             if let Some(crate_root) = crate_.manifest_path.parent() {
-                let assume_files = find_assume_files(
-                    crate_root, &parser_config.assume_patterns);
+                let assume_files = find_assume_files(crate_root, &parser_config.assume_patterns);
 
                 for assume_file in assume_files {
-                    let assume_node = FileNode::new(
-                        assume_file, FileKind::Assume);
+                    let assume_node = FileNode::new(assume_file, FileKind::Assume);
 
                     node.add_child(assume_node);
                 }

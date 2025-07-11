@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use normpath::PathExt;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, process::Command};
 
@@ -31,15 +32,14 @@ pub struct CargoDependency {
     pub source: Option<String>,
 }
 
-/// Get cargo metadata
-pub fn metadata(manifest_path: PathBuf) -> Result<CargoMetadata> {
+/// Get cargo metadata from current working directory
+pub fn metadata() -> Result<CargoMetadata> {
     let mut cmd = Command::new("cargo");
 
     cmd.arg("metadata")
         .arg("--format-version")
         .arg("1")
-        .arg("--manifest-path")
-        .arg(manifest_path);
+        .arg("--no-deps");
 
     let output = cmd.output()?;
 
@@ -49,7 +49,14 @@ pub fn metadata(manifest_path: PathBuf) -> Result<CargoMetadata> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let metadata = serde_json::from_str(&stdout)?;
+    let mut metadata: CargoMetadata = serde_json::from_str(&stdout)?;
+
+    // Normalize the workspace root path
+    metadata.workspace_root = metadata
+        .workspace_root
+        .normalize()
+        .map(|p| p.into_path_buf())
+        .unwrap_or(metadata.workspace_root);
 
     Ok(metadata)
 }

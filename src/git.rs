@@ -1,7 +1,7 @@
+use normpath::PathExt;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use normpath::PathExt;
 
 use crate::error::*;
 
@@ -71,14 +71,57 @@ pub fn diff(workspace_path: &Path, config: Option<GitConfig>) -> Result<GitDiff>
     let changed: Vec<PathBuf> = all_file_paths
         .iter()
         .filter(|path| path.exists())
-        .cloned()
+        .filter_map(|path| {
+            path.strip_prefix(workspace_path)
+                .ok()
+                .map(|p| p.to_path_buf())
+        })
         .collect();
 
     let deleted: Vec<PathBuf> = all_file_paths
         .iter()
         .filter(|path| !path.exists())
-        .cloned()
+        .filter_map(|path| {
+            path.strip_prefix(workspace_path)
+                .ok()
+                .map(|p| p.to_path_buf())
+        })
         .collect();
 
     Ok(GitDiff { changed, deleted })
+}
+
+pub fn get_top_level() -> Result<PathBuf> {
+    let output = Command::new("git")
+        .arg("rev-parse")
+        .arg("--show-toplevel")
+        .output()
+        .map_err(|e| {
+            Error::Git(format!(
+                "Failed to run git rev-parse --show-toplevel: {}",
+                e
+            ))
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(Error::Git(format!(
+            "git rev-parse --show-toplevel failed: {}",
+            stderr
+        )));
+    }
+
+    let git_root = String::from_utf8(output.stdout)
+        .map_err(|e| Error::Git(format!("Invalid UTF-8 in git rev-parse output: {}", e)))?
+        .trim()
+        .to_string();
+
+    let git_root_path = PathBuf::from(git_root);
+
+    let normalized_path = git_root_path
+        .normalize()
+        .map(|p| p.into_path_buf())
+        .unwrap_or(git_root_path);
+
+    Ok(normalized_path)
 }

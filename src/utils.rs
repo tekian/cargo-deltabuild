@@ -1,23 +1,21 @@
+use crate::error::{Error, Result};
 use encoding_rs::Encoding;
 use glob::Pattern;
 use normpath::PathExt;
-use std::path::{Path, PathBuf};
 use serde::de::DeserializeOwned;
 use std::fs;
-use crate::error::{Error, Result};
+use std::path::{Path, PathBuf};
 
 pub fn deser_json<T: DeserializeOwned>(file_path: &Path) -> Result<T> {
     let file_path_str = file_path.display().to_string();
 
-    let bytes = std::fs::read(file_path)
-        .map_err(|source| Error::JsonFileRead {
-            file: file_path_str.clone(),
-            source,
-        })?;
+    let bytes = std::fs::read(file_path).map_err(|source| Error::JsonFileRead {
+        file: file_path_str.clone(),
+        source,
+    })?;
 
     let (encoding, bytes_without_bom) =
-        Encoding::for_bom(&bytes)
-            .unwrap_or((encoding_rs::UTF_8, 0));
+        Encoding::for_bom(&bytes).unwrap_or((encoding_rs::UTF_8, 0));
 
     let bytes_to_decode = if bytes_without_bom > 0 {
         &bytes[bytes_without_bom..]
@@ -32,16 +30,15 @@ pub fn deser_json<T: DeserializeOwned>(file_path: &Path) -> Result<T> {
             file: file_path_str.clone(),
             source: std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("Unable to decode file: {}", encoding.name())
+                format!("Unable to decode file: {}", encoding.name()),
             ),
         });
     }
 
-    serde_json::from_str(&content)
-        .map_err(|source| Error::JsonFileParse {
-            file: file_path_str,
-            source,
-        })
+    serde_json::from_str(&content).map_err(|source| Error::JsonFileParse {
+        file: file_path_str,
+        source,
+    })
 }
 
 pub fn resolve_includes(base: &Path, includes: &[String]) -> Vec<PathBuf> {
@@ -106,7 +103,11 @@ pub fn resolve_workspace_relative(workspace: &Path, relative_path: &str) -> Opti
     }
 }
 
-pub fn find_files_except_for(dir: &Path, excludes: &[PathBuf], exclude_patterns: &[String]) -> Vec<PathBuf> {
+pub fn find_files_except_for(
+    dir: &Path,
+    excludes: &[PathBuf],
+    exclude_patterns: &[String],
+) -> Vec<PathBuf> {
     let canonical: Vec<PathBuf> = excludes
         .iter()
         .filter_map(|p| p.canonicalize().ok())
@@ -124,22 +125,33 @@ pub fn find_files_except_for(dir: &Path, excludes: &[PathBuf], exclude_patterns:
         excludes: &[PathBuf],
         excludes_canonical: &[PathBuf],
         exclude_patterns_compiled: &[Pattern],
-        result: &mut Vec<PathBuf>) {
-
-        let Ok(entries) = fs::read_dir(dir) else { return };
+        result: &mut Vec<PathBuf>,
+    ) {
+        let Ok(entries) = fs::read_dir(dir) else {
+            return;
+        };
 
         for entry in entries.flatten() {
             let path = entry.path();
 
             // Check if path matches any glob pattern
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if exclude_patterns_compiled.iter().any(|pattern| pattern.matches(name)) {
+                if exclude_patterns_compiled
+                    .iter()
+                    .any(|pattern| pattern.matches(name))
+                {
                     continue;
                 }
             }
 
             if path.is_dir() {
-                visit(&path, excludes, excludes_canonical, exclude_patterns_compiled, result);
+                visit(
+                    &path,
+                    excludes,
+                    excludes_canonical,
+                    exclude_patterns_compiled,
+                    result,
+                );
                 continue;
             }
 
