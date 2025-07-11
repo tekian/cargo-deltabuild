@@ -49,6 +49,8 @@ enum Commands {
 pub struct RunResult {
     #[serde(rename = "AffectedCrates")]
     pub affected_crates: Vec<String>,
+    #[serde(rename = "ImmediateCrates")]
+    pub immediate_crates: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -223,6 +225,7 @@ fn run(config: Config, baseline: &PathBuf, current: &PathBuf, eprintln_common_pr
 
     let total_crates = current_tree.crates.len();
     let affected_count = result.affected_crates.len();
+    let immediate_count = result.immediate_crates.len();
     let percentage = if total_crates > 0 {
         (affected_count as f64 / total_crates as f64) * 100.0
     } else {
@@ -234,6 +237,10 @@ fn run(config: Config, baseline: &PathBuf, current: &PathBuf, eprintln_common_pr
         "Impacts {} out of {} crates ({:.1}%)",
         affected_count, total_crates, percentage
     );
+    eprintln!(
+        "Direct changes in {} crate(s)",
+        immediate_count
+    );
 }
 
 fn get_affected_crates(
@@ -241,7 +248,7 @@ fn get_affected_crates(
     current_tree: &WorkspaceTree,
     git_diff: &GitDiff,
 ) -> Result<RunResult> {
-    let mut affected_crates = HashSet::new();
+    let mut immediate_crates = HashSet::new();
 
     for deleted_file in &git_diff.deleted {
         let crates_for_file = baseline_tree
@@ -249,7 +256,7 @@ fn get_affected_crates(
             .find_crates_containing_file(deleted_file);
 
         for crate_name in crates_for_file {
-            affected_crates.insert(crate_name);
+            immediate_crates.insert(crate_name);
         }
     }
 
@@ -257,7 +264,7 @@ fn get_affected_crates(
         let crates_for_file = current_tree.files.find_crates_containing_file(changed_file);
 
         for crate_name in crates_for_file {
-            affected_crates.insert(crate_name);
+            immediate_crates.insert(crate_name);
         }
     }
 
@@ -268,13 +275,13 @@ fn get_affected_crates(
         let crates_for_file = current_tree.files.find_crates_containing_file(new_file);
 
         for crate_name in crates_for_file {
-            affected_crates.insert(crate_name);
+            immediate_crates.insert(crate_name);
         }
     }
 
     let mut all_affected_crates = HashSet::new();
 
-    for crate_name in &affected_crates {
+    for crate_name in &immediate_crates {
         all_affected_crates.insert(crate_name.clone());
 
         match current_tree.crates.get_dependents(crate_name) {
@@ -298,5 +305,6 @@ fn get_affected_crates(
 
     Ok(RunResult {
         affected_crates: all_affected_crates.into_iter().collect(),
+        immediate_crates: immediate_crates.into_iter().collect(),
     })
 }
