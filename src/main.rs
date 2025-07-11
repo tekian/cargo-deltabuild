@@ -67,16 +67,27 @@ fn main() {
         }
     };
 
-    match &cli.command {
-        Commands::Run { baseline, current } => run(config, baseline, current),
+    let eprintln_common_props = || {
+        if let Some(config_path) = &cli.config {
+            eprintln!();
+            eprintln!("Using config file  : {}", config_path.display());
+        }
+    };
 
-        Commands::Analyze => analyze(config),
+    match &cli.command {
+        Commands::Run { baseline, current } =>
+            run(config, baseline, current, eprintln_common_props),
+
+        Commands::Analyze =>
+            analyze(config, eprintln_common_props),
     }
 }
 
-fn analyze(config: Config) {
+fn analyze(config: Config, eprintln_common_props: impl FnOnce())
+{
     let start = Instant::now();
     eprintln!("Analyzing workspace..");
+    eprintln_common_props();
 
     let metadata = match cargo::metadata() {
         Ok(metadata) => metadata,
@@ -121,13 +132,13 @@ fn analyze(config: Config) {
         }
     }
 
-    let file_paths: Vec<PathBuf> = workspace_tree.files.distinct().into_iter().collect();
-
     eprintln!();
     eprintln!("CAUTION: The following files are *NOT* considered compilation inputs:");
 
-    let unrelated =
-        utils::find_files_except_for(workspace_root, &file_paths, &config.files.exclude_patterns);
+    let excludes: Vec<PathBuf> = workspace_tree.files.distinct().into_iter().collect();
+
+    let unrelated = utils::find_unrelated(
+        &git_root, &excludes, &config.files.exclude_patterns);
 
     for file in unrelated {
         eprintln!("{}", file.display());
@@ -137,8 +148,9 @@ fn analyze(config: Config) {
     eprintln!("\nAnalysis finished in {:.2?}", duration);
 }
 
-fn run(config: Config, baseline: &PathBuf, current: &PathBuf) {
+fn run(config: Config, baseline: &PathBuf, current: &PathBuf, eprintln_common_props: impl FnOnce()) {
     eprintln!("Running deltabuild..\n");
+    eprintln_common_props();
 
     // Get git root to ensure we're working with consistent path bases
     let git_root = match git::get_top_level() {

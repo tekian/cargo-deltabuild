@@ -103,14 +103,14 @@ pub fn resolve_workspace_relative(workspace: &Path, relative_path: &str) -> Opti
     }
 }
 
-pub fn find_files_except_for(
-    dir: &Path,
+pub fn find_unrelated(
+    git_root: &Path,
     excludes: &[PathBuf],
     exclude_patterns: &[String],
 ) -> Vec<PathBuf> {
-    let canonical: Vec<PathBuf> = excludes
+    let excludes_processed: Vec<PathBuf> = excludes
         .iter()
-        .filter_map(|p| p.canonicalize().ok())
+        .filter_map(|p| p.normalize().ok().map(|n| n.into_path_buf()))
         .collect();
 
     let compiled: Vec<Pattern> = exclude_patterns
@@ -122,8 +122,9 @@ pub fn find_files_except_for(
 
     fn visit(
         dir: &Path,
+        git_root: &Path,
         excludes: &[PathBuf],
-        excludes_canonical: &[PathBuf],
+        excludes_processed: &[PathBuf],
         exclude_patterns_compiled: &[Pattern],
         result: &mut Vec<PathBuf>,
     ) {
@@ -147,8 +148,9 @@ pub fn find_files_except_for(
             if path.is_dir() {
                 visit(
                     &path,
+                    git_root,
                     excludes,
-                    excludes_canonical,
+                    excludes_processed,
                     exclude_patterns_compiled,
                     result,
                 );
@@ -159,12 +161,17 @@ pub fn find_files_except_for(
                 continue;
             }
 
-            if excludes.contains(&path) {
+            let relative_path = match path.strip_prefix(git_root) {
+                Ok(rel) => rel.to_path_buf(),
+                Err(_) => continue, // Skip files outside git root
+            };
+
+            if excludes.contains(&relative_path) {
                 continue;
             }
 
-            let excluded = match path.canonicalize() {
-                Ok(canonical_path) => excludes_canonical.contains(&canonical_path),
+            let excluded = match relative_path.normalize() {
+                Ok(i) => excludes_processed.contains(&i.into_path_buf()),
                 Err(_) => false,
             };
 
@@ -172,10 +179,10 @@ pub fn find_files_except_for(
                 continue;
             }
 
-            result.push(path);
+            result.push(relative_path);
         }
     }
 
-    visit(dir, excludes, &canonical, &compiled, &mut files);
+    visit(git_root, git_root, excludes, &excludes_processed, &compiled, &mut files);
     files
 }
