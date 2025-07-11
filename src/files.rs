@@ -231,25 +231,45 @@ impl<'a, 'ast> Visit<'ast> for SourceVisitor<'a> {
         self.current_path.pop();
     }
 
-    fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-        if !self.config.includes {
-            syn::visit::visit_expr_macro(self, node);
+    fn visit_item_macro(&mut self, node: &'ast syn::ItemMacro) {
+        let Some(ident) = node.mac.path.get_ident() else {
+            syn::visit::visit_item_macro(self, node);
             return;
+        };
+
+        let macro_name = ident.to_string();
+
+        if self.config.mods && self.config.mod_macros.contains(&macro_name) {
+            let tokens_str = node.mac.tokens.to_string();
+
+            if let Some(first_arg) = tokens_str.split(',').next() {
+                let mod_name = first_arg.trim().to_string();
+                if !mod_name.is_empty() {
+                    if self.current_path.is_empty() {
+                        self.mods.push(mod_name);
+                    } else {
+                        let parent = self.current_path.clone();
+                        self.nested_mods.push((parent, mod_name));
+                    }
+                }
+            }
         }
 
+        syn::visit::visit_item_macro(self, node);
+    }
+
+    fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
         let Some(ident) = node.mac.path.get_ident() else {
             syn::visit::visit_expr_macro(self, node);
             return;
         };
 
         let macro_name = ident.to_string();
-        if !self.config.include_macros.contains(&macro_name) {
-            syn::visit::visit_expr_macro(self, node);
-            return;
-        }
 
-        if let Ok(syn::Lit::Str(lit_str)) = node.mac.parse_body::<syn::Lit>() {
-            self.includes.push(lit_str.value());
+        if self.config.includes && self.config.include_macros.contains(&macro_name) {
+            if let Ok(syn::Lit::Str(lit_str)) = node.mac.parse_body::<syn::Lit>() {
+                self.includes.push(lit_str.value());
+            }
         }
 
         syn::visit::visit_expr_macro(self, node);

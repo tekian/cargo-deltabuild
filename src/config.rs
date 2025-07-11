@@ -46,6 +46,8 @@ pub struct ParserConfig {
     pub include_macros: HashSet<String>,
     #[serde(default = "default_true")]
     pub mods: bool,
+    #[serde(default = "default_mod_macros")]
+    pub mod_macros: HashSet<String>,
     #[serde(default = "default_false")]
     pub assume: bool,
     #[serde(default)]
@@ -83,6 +85,10 @@ fn default_include_macros() -> HashSet<String> {
         .iter()
         .map(|s| s.to_string())
         .collect()
+}
+
+fn default_mod_macros() -> HashSet<String> {
+    HashSet::new()
 }
 
 impl Default for Config {
