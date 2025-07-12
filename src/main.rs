@@ -46,11 +46,13 @@ enum Commands {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RunResult {
-    #[serde(rename = "AffectedCrates")]
-    pub affected_crates: Vec<String>,
-    #[serde(rename = "ImmediateCrates")]
-    pub immediate_crates: Vec<String>,
+pub struct Impact {
+    #[serde(rename = "ChangedCrates")]
+    pub changed_crates: HashSet<String>,
+    #[serde(rename = "DependentCrates")]
+    pub dependent_crates: HashSet<String>,
+    #[serde(rename = "WorkspaceSubset")]
+    pub workspace_subset: HashSet<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -207,7 +209,7 @@ fn run(config: Config, baseline: &PathBuf, current: &PathBuf, eprintln_common_pr
         }
     };
 
-    let result = match get_affected_crates(&baseline_tree, &current_tree, &diff) {
+    let result = match get_impacted_crates(&baseline_tree, &current_tree, &diff) {
         Ok(i) => i,
         Err(e) => {
             eprintln!("Error calculating affected crates: {}", e);
@@ -224,31 +226,30 @@ fn run(config: Config, baseline: &PathBuf, current: &PathBuf, eprintln_common_pr
     }
 
     let total_crates = current_tree.crates.len();
-    let affected_count = result.affected_crates.len();
-    let immediate_count = result.immediate_crates.len();
-    let percentage = if total_crates > 0 {
-        (affected_count as f64 / total_crates as f64) * 100.0
+    let workspace_subset_len = result.workspace_subset.len();
+    let dependent_crates_len = result.dependent_crates.len();
+    let changed_crates_len = result.changed_crates.len();
+
+    let subset_pct = if total_crates > 0 {
+        (workspace_subset_len as f64 / total_crates as f64) * 100.0
     } else {
         0.0
     };
 
     eprintln!();
-    eprintln!(
-        "Impacts {} out of {} crates ({:.1}%)",
-        affected_count, total_crates, percentage
-    );
-    eprintln!(
-        "Direct changes in {} crate(s)",
-        immediate_count
-    );
+    eprintln!("Changed crates   : {} (to format, lint)", changed_crates_len);
+    eprintln!("Dependent crates : {} (to test in addition)", dependent_crates_len);
+    eprintln!("Workspace subset : {} out of {} crates ({:.1}%)",
+              workspace_subset_len, total_crates, subset_pct);
+    eprintln!();
 }
 
-fn get_affected_crates(
+fn get_impacted_crates(
     baseline_tree: &WorkspaceTree,
     current_tree: &WorkspaceTree,
     git_diff: &GitDiff,
-) -> Result<RunResult> {
-    let mut immediate_crates = HashSet::new();
+) -> Result<Impact> {
+    let mut changed_crates = HashSet::new();
 
     for deleted_file in &git_diff.deleted {
         let crates_for_file = baseline_tree
@@ -256,7 +257,7 @@ fn get_affected_crates(
             .find_crates_containing_file(deleted_file);
 
         for crate_name in crates_for_file {
-            immediate_crates.insert(crate_name);
+            changed_crates.insert(crate_name);
         }
     }
 
@@ -264,7 +265,7 @@ fn get_affected_crates(
         let crates_for_file = current_tree.files.find_crates_containing_file(changed_file);
 
         for crate_name in crates_for_file {
-            immediate_crates.insert(crate_name);
+            changed_crates.insert(crate_name);
         }
     }
 
@@ -275,36 +276,58 @@ fn get_affected_crates(
         let crates_for_file = current_tree.files.find_crates_containing_file(new_file);
 
         for crate_name in crates_for_file {
-            immediate_crates.insert(crate_name);
+            changed_crates.insert(crate_name);
         }
     }
 
-    let mut all_affected_crates = HashSet::new();
-
-    for crate_name in &immediate_crates {
-        all_affected_crates.insert(crate_name.clone());
-
-        match current_tree.crates.get_dependents(crate_name) {
-            Some(immediate_dependents) => {
-                for dependent in immediate_dependents {
-                    all_affected_crates.insert(dependent);
+    let mut all_dependents = HashSet::new();
+    for crate_name in &changed_crates {
+        match current_tree.crates.get_dependents_transitive(crate_name) {
+            Some(transitive_dependents) => {
+                for dependent in transitive_dependents {
+                    all_dependents.insert(dependent);
                 }
             }
             None => {}
         }
+    }
 
+    let dependent_crates = all_dependents.clone();
+    let mut workspace_subset = HashSet::new();
+
+    for crate_name in &changed_crates {
+        workspace_subset.insert(crate_name.clone());
+    }
+
+    for crate_name in &changed_crates {
         match current_tree.crates.get_dependencies_transitive(crate_name) {
             Some(transitive_deps) => {
                 for dependency in transitive_deps {
-                    all_affected_crates.insert(dependency);
+                    workspace_subset.insert(dependency);
                 }
             }
             None => {}
         }
     }
 
-    Ok(RunResult {
-        affected_crates: all_affected_crates.into_iter().collect(),
-        immediate_crates: immediate_crates.into_iter().collect(),
+    for crate_name in &all_dependents {
+        workspace_subset.insert(crate_name.clone());
+    }
+
+    for crate_name in &all_dependents {
+        match current_tree.crates.get_dependencies_transitive(crate_name) {
+            Some(transitive_deps) => {
+                for dependency in transitive_deps {
+                    workspace_subset.insert(dependency);
+                }
+            }
+            None => {}
+        }
+    }
+
+    Ok(Impact {
+        changed_crates,
+        dependent_crates,
+        workspace_subset,
     })
 }
