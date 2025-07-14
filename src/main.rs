@@ -292,41 +292,22 @@ fn get_impacted_crates(
         }
     }
 
-    let mut all_affected = HashSet::new();
+    // Affected = Modified + all their dependents
+    let mut affected = modified.clone();
     for crate_name in &modified {
         match current_tree.crates.get_dependents_transitive(crate_name) {
             Some(transitive_dependents) => {
                 for dependent in transitive_dependents {
-                    all_affected.insert(dependent);
+                    affected.insert(dependent);
                 }
             }
             None => {}
         }
     }
 
-    let affected = all_affected.clone();
-    let mut required = HashSet::new();
-
-    for crate_name in &modified {
-        required.insert(crate_name.clone());
-    }
-
-    for crate_name in &modified {
-        match current_tree.crates.get_dependencies_transitive(crate_name) {
-            Some(transitive_deps) => {
-                for dependency in transitive_deps {
-                    required.insert(dependency);
-                }
-            }
-            None => {}
-        }
-    }
-
-    for crate_name in &all_affected {
-        required.insert(crate_name.clone());
-    }
-
-    for crate_name in &all_affected {
+    // Required = Affected + all their dependencies
+    let mut required = affected.clone();
+    for crate_name in &affected {
         match current_tree.crates.get_dependencies_transitive(crate_name) {
             Some(transitive_deps) => {
                 for dependency in transitive_deps {
