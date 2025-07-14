@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use argh::FromArgs;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -18,41 +18,47 @@ use crate::error::Result;
 use crate::files::FileNode;
 use crate::git::GitDiff;
 
-#[derive(Parser)]
-#[command(name = "cargo-deltabuild")]
-#[command(about = "Best-effort tool to find affected crates based on git changes.")]
+#[derive(FromArgs)]
+#[argh(description = "Tool to identify impacted crates from git changes.")]
 struct Args {
-    /// Path to configuration file.
-    #[arg(short, long)]
+    /// path to the config file
+    #[argh(option, short = 'c')]
     config: Option<PathBuf>,
-    /// Path to workspace root.
-    #[command(subcommand)]
+    
+    #[argh(subcommand)]
     command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(FromArgs)]
+#[argh(subcommand)]
 enum Commands {
-    /// Run deltabuild and show affected crates.
-    Run {
-        /// Path to JSON file containing workspace analysis of the baseline/reference branch.
-        #[arg(long)]
-        baseline: PathBuf,
-        /// Path to JSON file containing workspace analysis of the current/target branch.
-        #[arg(long)]
-        current: PathBuf,
-    },
-    /// Analyze current workspace and produce JSON file.
-    Analyze,
+    Run(RunCommand),
+    Analyze(AnalyzeCommand),
 }
+
+#[derive(FromArgs)]
+#[argh(subcommand, name = "run", description = "run deltabuild and show affected crates")]
+struct RunCommand {
+    /// baseline workspace analysis JSON file
+    #[argh(option)]
+    baseline: PathBuf,
+    /// current workspace analysis JSON file
+    #[argh(option)]
+    current: PathBuf,
+}
+
+#[derive(FromArgs)]
+#[argh(subcommand, name = "analyze", description = "analyze current workspace and produce JSON file")]
+struct AnalyzeCommand {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Impact {
-    #[serde(rename = "ChangedCrates")]
-    pub changed_crates: HashSet<String>,
-    #[serde(rename = "DependentCrates")]
-    pub dependent_crates: HashSet<String>,
-    #[serde(rename = "WorkspaceSubset")]
-    pub workspace_subset: HashSet<String>,
+    #[serde(rename = "Modified")]
+    pub modified: HashSet<String>,
+    #[serde(rename = "Dependents")]
+    pub affected: HashSet<String>,
+    #[serde(rename = "Subset")]
+    pub required: HashSet<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,7 +68,7 @@ pub struct WorkspaceTree {
 }
 
 fn main() {
-    let cli = Args::parse();
+    let cli: Args = argh::from_env();
     let config = match config::load_config(cli.config.clone()) {
         Ok(i) => i,
         Err(e) => {
@@ -79,10 +85,10 @@ fn main() {
     };
 
     match &cli.command {
-        Commands::Run { baseline, current } =>
-            run(config, baseline, current, eprintln_common_props),
+        Commands::Run(run_cmd) =>
+            run(config, &run_cmd.baseline, &run_cmd.current, eprintln_common_props),
 
-        Commands::Analyze =>
+        Commands::Analyze(_) =>
             analyze(config, eprintln_common_props),
     }
 }
@@ -226,21 +232,27 @@ fn run(config: Config, baseline: &PathBuf, current: &PathBuf, eprintln_common_pr
     }
 
     let total_crates = current_tree.crates.len();
-    let workspace_subset_len = result.workspace_subset.len();
-    let dependent_crates_len = result.dependent_crates.len();
-    let changed_crates_len = result.changed_crates.len();
 
-    let subset_pct = if total_crates > 0 {
-        (workspace_subset_len as f64 / total_crates as f64) * 100.0
-    } else {
-        0.0
-    };
+    let required_crates_len = result.required.len();
+    let affected_crates_len = result.affected.len();
+    let modified_crates_len = result.modified.len();
 
-    eprintln!();
-    eprintln!("Changed crates   : {} (to format, lint)", changed_crates_len);
-    eprintln!("Dependent crates : {} (to test in addition)", dependent_crates_len);
-    eprintln!("Workspace subset : {} out of {} crates ({:.1}%)",
-              workspace_subset_len, total_crates, subset_pct);
+    eprintln!(
+        "{:<11} {:>3} {}", "Modified", 
+        modified_crates_len, "(Crates directly modified by Git changes.)");
+
+    eprintln!(
+        "{:<11} {:>3} {}", "Affected", 
+        affected_crates_len, "(Modified crates plus all their dependents, direct and indirect.)");
+
+    eprintln!(
+        "{:<11} {:>3} {}", "Required", 
+        required_crates_len, "(Affected crates plus all their dependencies.)");
+
+    eprintln!(
+        "{:<11} {:>3} {}", "Total", 
+        total_crates, "(Total crates in this workspace.)");
+    
     eprintln!();
 }
 
@@ -249,7 +261,7 @@ fn get_impacted_crates(
     current_tree: &WorkspaceTree,
     git_diff: &GitDiff,
 ) -> Result<Impact> {
-    let mut changed_crates = HashSet::new();
+    let mut modified = HashSet::new();
 
     for deleted_file in &git_diff.deleted {
         let crates_for_file = baseline_tree
@@ -257,7 +269,7 @@ fn get_impacted_crates(
             .find_crates_containing_file(deleted_file);
 
         for crate_name in crates_for_file {
-            changed_crates.insert(crate_name);
+            modified.insert(crate_name);
         }
     }
 
@@ -265,7 +277,7 @@ fn get_impacted_crates(
         let crates_for_file = current_tree.files.find_crates_containing_file(changed_file);
 
         for crate_name in crates_for_file {
-            changed_crates.insert(crate_name);
+            modified.insert(crate_name);
         }
     }
 
@@ -276,58 +288,54 @@ fn get_impacted_crates(
         let crates_for_file = current_tree.files.find_crates_containing_file(new_file);
 
         for crate_name in crates_for_file {
-            changed_crates.insert(crate_name);
+            modified.insert(crate_name);
         }
     }
 
-    let mut all_dependents = HashSet::new();
-    for crate_name in &changed_crates {
+    let mut all_affected = HashSet::new();
+    for crate_name in &modified {
         match current_tree.crates.get_dependents_transitive(crate_name) {
             Some(transitive_dependents) => {
                 for dependent in transitive_dependents {
-                    all_dependents.insert(dependent);
+                    all_affected.insert(dependent);
                 }
             }
             None => {}
         }
     }
 
-    let dependent_crates = all_dependents.clone();
-    let mut workspace_subset = HashSet::new();
+    let affected = all_affected.clone();
+    let mut required = HashSet::new();
 
-    for crate_name in &changed_crates {
-        workspace_subset.insert(crate_name.clone());
+    for crate_name in &modified {
+        required.insert(crate_name.clone());
     }
 
-    for crate_name in &changed_crates {
+    for crate_name in &modified {
         match current_tree.crates.get_dependencies_transitive(crate_name) {
             Some(transitive_deps) => {
                 for dependency in transitive_deps {
-                    workspace_subset.insert(dependency);
+                    required.insert(dependency);
                 }
             }
             None => {}
         }
     }
 
-    for crate_name in &all_dependents {
-        workspace_subset.insert(crate_name.clone());
+    for crate_name in &all_affected {
+        required.insert(crate_name.clone());
     }
 
-    for crate_name in &all_dependents {
+    for crate_name in &all_affected {
         match current_tree.crates.get_dependencies_transitive(crate_name) {
             Some(transitive_deps) => {
                 for dependency in transitive_deps {
-                    workspace_subset.insert(dependency);
+                    required.insert(dependency);
                 }
             }
             None => {}
         }
     }
 
-    Ok(Impact {
-        changed_crates,
-        dependent_crates,
-        workspace_subset,
-    })
+    Ok(Impact { modified, affected, required })
 }
