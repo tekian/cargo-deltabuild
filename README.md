@@ -111,17 +111,11 @@ The tool uses several heuristics to detect file dependencies:
 
 ## Output Format
 
-The tool outputs JSON with affected crates:
+The tool outputs JSON with three categories of affected crates:
 
-```json
-{
-  "AffectedCrates": [
-    "my-crate",
-    "dependent-crate",
-    "another-crate"
-  ]
-}
-```
+- **Modified**: Crates directly modified by Git changes
+- **Affected**: Modified crates plus all their dependents (direct and indirect)
+- **Required**: All crates needed - affected crates plus all their dependencies
 
 ## Limitations
 
@@ -153,18 +147,31 @@ Looking up git changes..
 Changed file: "src/api/mod.rs"
 Changed file: "src/utils.rs"
 
-Using baseline analysis   : main.json
-Using current analysis    : feature.json
+Using baseline analysis : main.json
+Using current analysis  : feature.json
 
 {
-  "AffectedCrates": [
+  "Modified": [
+    "my-api",
+    "my-utils"
+  ],
+  "Affected": [
     "my-api",
     "my-utils",
     "my-app"
+  ],
+  "Required": [
+    "my-api",
+    "my-utils", 
+    "my-app",
+    "common-lib"
   ]
 }
 
-Impacts 3 out of 15 crates (20.0%)
+Modified      2 (Crates directly modified by Git changes.)
+Affected      3 (Modified crates plus all their dependents, direct and indirect.)
+Required      4 (Affected crates plus all their dependencies.)
+Total        15 (Total crates in this workspace.)
 ```
 
 ## Contributing

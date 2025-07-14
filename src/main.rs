@@ -55,9 +55,9 @@ struct AnalyzeCommand {}
 pub struct Impact {
     #[serde(rename = "Modified")]
     pub modified: HashSet<String>,
-    #[serde(rename = "Dependents")]
+    #[serde(rename = "Affected")]
     pub affected: HashSet<String>,
-    #[serde(rename = "Subset")]
+    #[serde(rename = "Required")]
     pub required: HashSet<String>,
 }
 
