@@ -32,50 +32,33 @@ cargo install cargo-deltabuild
    cargo deltabuild analyze > feature.json
    ```
 
-3. **Compare analyses to find affected crates:**
+3. **Compare analyses to find impacted crates:**
    ```bash
    cargo deltabuild run --baseline main.json --current feature.json
    ```
 
 ## Configuration
 
-Create a `config.toml` file to customize the analysis:
+You can customize `cargo-deltabuild` by providing a `config.toml` file. Pass it to either subcommand with the `-c` or `--config` option:
+
+```bash
+cargo deltabuild analyze -c config.toml 
+cargo deltabuild run -c config.toml
+```
+
+Configuration options can be set globally and overridden per crate. For example, you can enable a feature for all crates, but disable or adjust it for a specific crate in the config file:
 
 ```toml
 [parser]
-# Enable/disable file reference detection from method calls
-file_refs = true
-file_methods = ["file", "from_file", "load", "open", "read"]
+foo = true
+foo_patterns = ["*.foo", "*.bar"]
 
-# Enable/disable detection of include macros
-includes = true
-include_macros = ["include_str", "include_bytes"]
-
-# Enable/disable following mod declarations
-mods = true
-
-# Enable/disable pattern-based assumptions
-assume = true
-assume_patterns = ["*.proto", "*.snap"]
-
-[git]
-# Remote branch to compare against
-remote_branch = "origin/main"
-
-# Trip wire patterns - if any changed file matches these patterns,
-# all crates in the workspace are considered affected (full rebuild)
-trip_wire_patterns = [
-    "Cargo.toml",           # Root workspace changes
-    "Cargo.lock",           # Dependency changes  
-    ".cargo/config.toml",   # Cargo configuration
-    "build.rs",             # Build scripts
-    "config.toml"           # This tool's config
-]
-
-[files]
-# Patterns to exclude from analysis
-exclude_patterns = ["target/**", "*.tmp"]
+[parser.my-crate]
+foo = false  # Override for a specific crate
+foo_patterns = ["*.baz"]
 ```
+
+Default settings are provided in [`config.toml.example`](./config.toml.example).
 
 ## Detection Methods
 
