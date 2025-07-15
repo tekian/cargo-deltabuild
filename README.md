@@ -11,6 +11,7 @@
 - **Impact Categorization**: Separates crates into _Modified_, _Affected_, and _Required_ for precise CI/CD targeting.
 - **Configurability**: Highly customizable via `config.toml`, with per-crate overrides for parsing and detection.
 - **Dual-branch Git Detection**: Compares two branches or commits to find both modified and deleted files.
+- **File Control Mechanisms**: Exclude files from analysis or trigger a full rebuild when critical files change.
 
 ## Installation
 
@@ -39,11 +40,11 @@ cargo install cargo-deltabuild
 
 ## Configuration
 
-You can customize `cargo-deltabuild` by providing a `config.toml` file. Pass it to either subcommand with the `-c` or `--config` option:
+You can customize `cargo-deltabuild` by providing a `-c config.toml` argument to the command.
 
 ```bash
-cargo deltabuild analyze -c config.toml 
-cargo deltabuild run -c config.toml
+cargo deltabuild analyze -c config.toml # ...
+cargo deltabuild run -c config.toml # ...
 ```
 
 Configuration options can be set globally and overridden per crate. For example, you can enable a feature for all crates, but disable or adjust it for a specific crate in the config file:
@@ -54,21 +55,67 @@ foo = true
 foo_patterns = ["*.foo", "*.bar"]
 
 [parser.my-crate]
-foo = false  # Override for a specific crate
-foo_patterns = ["*.baz"]
+foo_patterns = ["*.baz"] # Override for a specific crate
 ```
 
 Default settings are provided in [`config.toml.example`](./config.toml.example).
 
 ## Detection Methods
 
-The tool uses several heuristics to detect file dependencies:
+### Static Analysis
 
-1. **Module Dependencies**: Follows `mod` declarations and `#[path]` attributes
-2. **Include Macros**: Detects `include_str!()` and `include_bytes!()` macros
-3. **File References**: Identifies method calls that load files (e.g., `::file()`, `::from_file()`)
-4. **Pattern Matching**: Assumes certain file types are dependencies (e.g., `.proto`, `.snap`)
-5. **Trip Wire**: Certain critical files trigger a full workspace rebuild when changed
+#### Module Traversal
+Follows `mod` declarations and `#[path]` attributes to discover all Rust modules in the workspace.
+
+#### Include Macros
+Detects files included via macros such as `include_str!` and `include_bytes!`.
+Config example:
+```toml
+[parser]
+include_macros = ["include_str", "include_bytes"] # default
+```
+
+#### Pattern-based Assumptions
+Assumes certain files are dependencies based on glob patterns (e.g., `*.proto`, `*.snap`).
+Config example:
+```toml
+[parser]
+assume = true # default: true
+assume_patterns = ["*.proto", "*.snap"]
+```
+
+### Runtime Analysis
+
+#### File Method Matching
+Detects files loaded at runtime by matching method names (e.g., `from_file`, `load`, `open`).
+Config example:
+```toml
+[parser]
+file_refs = true # default: true
+file_methods = ["file", "from_file", "load", "open", "read", "load_from"]
+```
+
+## File Control Mechanisms
+
+### File Exclusion
+Exclude files and folders from analysis using glob patterns. Useful for ignoring build artifacts, temp files, etc.
+Config example:
+```toml
+file_exclude_patterns = ["target/**", "*.tmp"]
+```
+
+### Trip Wire: Critical File Trigger
+If any changed or deleted file matches a configured trip wire pattern, all crates are considered impacted. Use this for critical files like `Cargo.toml`, build scripts, or configuration files.
+Config example:
+```toml
+trip_wire_patterns = [
+    "Cargo.toml",
+    "Cargo.lock",
+    ".cargo/config.toml",
+    "build.rs",
+    "config.toml"
+]
+```
 
 ## Output Format
 
