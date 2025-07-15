@@ -24,7 +24,7 @@ struct Args {
     /// path to the config file
     #[argh(option, short = 'c')]
     config: Option<PathBuf>,
-    
+
     #[argh(subcommand)]
     command: Commands,
 }
@@ -173,7 +173,7 @@ fn run(config: Config, baseline: &PathBuf, current: &PathBuf, eprintln_common_pr
 
     eprintln!("Looking up git changes..");
 
-    let diff = match git::diff(&git_root, config.git) {
+    let diff = match git::diff(&git_root, config.git.clone()) {
         Ok(i) => i,
         Err(e) => {
             eprintln!("Error creating diff: {}", e);
@@ -215,7 +215,7 @@ fn run(config: Config, baseline: &PathBuf, current: &PathBuf, eprintln_common_pr
         }
     };
 
-    let result = match get_impacted_crates(&baseline_tree, &current_tree, &diff) {
+    let result = match get_impacted_crates(&baseline_tree, &current_tree, &diff, &config) {
         Ok(i) => i,
         Err(e) => {
             eprintln!("Error calculating affected crates: {}", e);
@@ -238,21 +238,21 @@ fn run(config: Config, baseline: &PathBuf, current: &PathBuf, eprintln_common_pr
     let modified_crates_len = result.modified.len();
 
     eprintln!(
-        "{:<11} {:>3} {}", "Modified", 
+        "{:<11} {:>3} {}", "Modified",
         modified_crates_len, "(Crates directly modified by Git changes.)");
 
     eprintln!(
-        "{:<11} {:>3} {}", "Affected", 
+        "{:<11} {:>3} {}", "Affected",
         affected_crates_len, "(Modified crates plus all their dependents, direct and indirect.)");
 
     eprintln!(
-        "{:<11} {:>3} {}", "Required", 
+        "{:<11} {:>3} {}", "Required",
         required_crates_len, "(Affected crates plus all their dependencies.)");
 
     eprintln!(
-        "{:<11} {:>3} {}", "Total", 
+        "{:<11} {:>3} {}", "Total",
         total_crates, "(Total crates in this workspace.)");
-    
+
     eprintln!();
 }
 
@@ -260,8 +260,56 @@ fn get_impacted_crates(
     baseline_tree: &WorkspaceTree,
     current_tree: &WorkspaceTree,
     git_diff: &GitDiff,
+    config: &Config,
 ) -> Result<Impact> {
     let mut modified = HashSet::new();
+
+    if !config.trip_wire_patterns.is_empty() {
+        use glob::Pattern;
+
+        let trip_wire_patterns: Vec<Pattern> = config.trip_wire_patterns
+            .iter()
+            .filter_map(|pattern| Pattern::new(pattern).ok())
+            .collect();
+
+        let mut tripped_files = Vec::new();
+
+        for deleted_file in &git_diff.deleted {
+            let file_str = deleted_file.to_string_lossy();
+            if trip_wire_patterns.iter().any(|pattern| pattern.matches(&file_str)) {
+                tripped_files.push(file_str.to_string());
+            }
+        }
+
+        for changed_file in &git_diff.changed {
+            let file_str = changed_file.to_string_lossy();
+            if trip_wire_patterns.iter().any(|pattern| pattern.matches(&file_str)) {
+                tripped_files.push(file_str.to_string());
+            }
+        }
+
+        if !tripped_files.is_empty() {
+            eprintln!("WARNING: Trip wire activated due to changes in the following file(s):");
+            for file in &tripped_files {
+                eprintln!("- {}", file);
+            }
+            eprintln!();
+
+            let all_crates: HashSet<String> = current_tree.crates
+                .get_all_crate_names()
+                .into_iter()
+                .collect();
+
+            return Ok(Impact {
+                modified: all_crates.clone(),
+                affected: all_crates.clone(),
+                required: all_crates,
+            });
+        } else {
+            eprintln!("Trip wire is enabled, but no matching files were found, good.");
+            eprintln!();
+        }
+    }
 
     for deleted_file in &git_diff.deleted {
         let crates_for_file = baseline_tree

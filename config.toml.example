@@ -37,3 +37,15 @@ assume_patterns = ["*.proto", "*.snap"]
 [git]
 # Remote branch to compare against for detecting changes
 remote_branch = "origin/master"
+
+# Trip wire patterns - if any changed file matches these patterns,
+# all crates in the workspace should be considered affected
+trip_wire_patterns = [
+    "Cargo.toml",           # Root workspace changes
+    "Cargo.lock",           # Dependency changes
+    ".cargo/config.toml",   # Cargo configuration
+    "build.rs",             # Build scripts
+    "config.toml",          # This tool's config
+    "justfile",             # Just build files
+    "Makefile"              # Make build files
+]

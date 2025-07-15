@@ -16,6 +16,8 @@ pub struct Config {
     pub git: Option<GitConfig>,
     #[serde(default)]
     pub files: FilesConfig,
+    #[serde(default)]
+    pub trip_wire_patterns: Vec<String>,
     #[serde(flatten)]
     pub crate_configs: HashMap<String, ParserConfig>,
 }
@@ -97,6 +99,7 @@ impl Default for Config {
             parser: ParserConfig::default(),
             git: None,
             files: FilesConfig::default(),
+            trip_wire_patterns: Vec::new(),
             crate_configs: HashMap::new(),
         }
     }

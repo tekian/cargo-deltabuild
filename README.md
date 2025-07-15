@@ -95,6 +95,16 @@ assume_patterns = ["*.proto", "*.snap"]
 # Remote branch to compare against
 remote_branch = "origin/main"
 
+# Trip wire patterns - if any changed file matches these patterns,
+# all crates in the workspace are considered affected (full rebuild)
+trip_wire_patterns = [
+    "Cargo.toml",           # Root workspace changes
+    "Cargo.lock",           # Dependency changes  
+    ".cargo/config.toml",   # Cargo configuration
+    "build.rs",             # Build scripts
+    "config.toml"           # This tool's config
+]
+
 [files]
 # Patterns to exclude from analysis
 exclude_patterns = ["target/**", "*.tmp"]
@@ -108,6 +118,7 @@ The tool uses several heuristics to detect file dependencies:
 2. **Include Macros**: Detects `include_str!()` and `include_bytes!()` macros
 3. **File References**: Identifies method calls that load files (e.g., `::file()`, `::from_file()`)
 4. **Pattern Matching**: Assumes certain file types are dependencies (e.g., `.proto`, `.snap`)
+5. **Trip Wire**: Certain critical files trigger a full workspace rebuild when changed
 
 ## Output Format
 
@@ -124,6 +135,8 @@ This tool is **best-effort** and may not detect all dependencies:
 - Dynamic file paths computed at runtime
 - Conditional compilation dependencies
 - Other dependencies not captured by the heuristics
+
+**Note**: Use trip wire patterns for critical files that should trigger full rebuilds when changed (e.g., workspace configuration, build scripts).
 
 
 ## Example

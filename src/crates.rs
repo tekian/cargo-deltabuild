@@ -126,4 +126,8 @@ impl Crates {
     pub fn len(&self) -> usize {
         self.crates.len()
     }
+
+    pub fn get_all_crate_names(&self) -> Vec<String> {
+        self.crates.keys().cloned().collect()
+    }
 }
