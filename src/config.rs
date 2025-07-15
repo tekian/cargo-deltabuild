@@ -4,36 +4,26 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{
-    error::{Error, Result},
-    git::GitConfig,
-};
+use crate::{error::{Error, Result}};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Config {
+pub struct MainConfig {
     #[serde(default)]
     pub parser: ParserConfig,
-    pub git: Option<GitConfig>,
     #[serde(default)]
-    pub files: FilesConfig,
+    pub git: Option<GitConfig>,
+    #[serde(default = "default_file_excludes")]
+    pub file_exclude_patterns: Vec<String>,
     #[serde(default)]
     pub trip_wire_patterns: Vec<String>,
     #[serde(flatten)]
     pub crate_configs: HashMap<String, ParserConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FilesConfig {
-    #[serde(default = "default_excludes")]
-    pub exclude_patterns: Vec<String>,
-}
 
-impl Default for FilesConfig {
-    fn default() -> Self {
-        Self {
-            exclude_patterns: default_excludes(),
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GitConfig {
+    pub remote_branch: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,7 +57,7 @@ fn default_true() -> bool {
     true
 }
 
-fn default_excludes() -> Vec<String> {
+fn default_file_excludes() -> Vec<String> {
     vec![".*".to_string(), "target".to_string()]
 }
 
@@ -93,19 +83,14 @@ fn default_mod_macros() -> HashSet<String> {
     HashSet::new()
 }
 
-impl Default for Config {
+impl Default for MainConfig {
     fn default() -> Self {
-        Self {
-            parser: ParserConfig::default(),
-            git: None,
-            files: FilesConfig::default(),
-            trip_wire_patterns: Vec::new(),
-            crate_configs: HashMap::new(),
-        }
+        // Use serde's deserialization to get the defaults.
+        toml::from_str("").unwrap()
     }
 }
 
-impl Config {
+impl MainConfig {
     pub fn crate_config(&self, crate_name: &str) -> ParserConfig {
         let crate_key = format!("parser.{}", crate_name);
         self.crate_configs
@@ -115,15 +100,15 @@ impl Config {
     }
 }
 
-pub fn load_config(config_path: Option<PathBuf>) -> Result<Config> {
+pub fn load_config(config_path: Option<PathBuf>) -> Result<MainConfig> {
     match config_path {
         Some(path) => {
             let content = std::fs::read_to_string(&path).map_err(Error::ConfigRead)?;
 
-            let config: Config = toml::from_str(&content)?;
+            let config: MainConfig = toml::from_str(&content)?;
 
             Ok(config)
         }
-        None => Ok(Config::default()),
+        None => Ok(MainConfig::default()),
     }
 }

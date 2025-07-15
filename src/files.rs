@@ -9,7 +9,7 @@ use syn::visit::Visit;
 
 use crate::{
     cargo::{CargoCrate, CargoMetadata},
-    config::{Config, ParserConfig},
+    config::{MainConfig, ParserConfig},
     error::Result,
     utils,
 };
@@ -359,7 +359,7 @@ fn build_file_node(
     file_path: &Path,
     visited: &mut HashSet<PathBuf>,
     workspace_root: Option<&Path>,
-    root_config: &Config,
+    main_config: &MainConfig,
     crate_name: &str,
 ) -> FileNode {
     let mut node = FileNode::new(file_path.to_path_buf(), FileKind::Unset);
@@ -370,7 +370,7 @@ fn build_file_node(
 
     visited.insert(file_path.to_path_buf());
 
-    let config = root_config.crate_config(crate_name);
+    let config = main_config.crate_config(crate_name);
     let Ok(visitor) = parse_rust(file_path, &config) else {
         return node;
     };
@@ -393,7 +393,7 @@ fn build_file_node(
 
         for mod_file in mod_files {
             let mut child_node =
-                build_file_node(&mod_file, visited, workspace_root, root_config, crate_name);
+                build_file_node(&mod_file, visited, workspace_root, main_config, crate_name);
 
             child_node.kind = FileKind::Module;
             node.add_child(child_node);
@@ -409,7 +409,7 @@ fn build_file_node(
 
             for mod_file in nested_mod_files {
                 let mut child_node =
-                    build_file_node(&mod_file, visited, workspace_root, root_config, crate_name);
+                    build_file_node(&mod_file, visited, workspace_root, main_config, crate_name);
 
                 child_node.kind = FileKind::Module;
                 node.add_child(child_node);
@@ -466,7 +466,7 @@ fn find_assume_files(crate_root: &Path, patterns: &HashSet<String>) -> Vec<PathB
     found_files
 }
 
-pub fn build_tree(metadata: &CargoMetadata, crates: &[&CargoCrate], config: &Config) -> FileNode {
+pub fn build_tree(metadata: &CargoMetadata, crates: &[&CargoCrate], config: &MainConfig) -> FileNode {
     let mut visited = HashSet::new();
 
     let root_path = metadata.workspace_root.join("Cargo.toml");

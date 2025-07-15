@@ -12,7 +12,7 @@ mod files;
 mod git;
 mod utils;
 
-use crate::config::Config;
+use crate::config::MainConfig;
 use crate::crates::Crates;
 use crate::error::Result;
 use crate::files::FileNode;
@@ -93,7 +93,7 @@ fn main() {
     }
 }
 
-fn analyze(config: Config, eprintln_common_props: impl FnOnce())
+fn analyze(config: MainConfig, eprintln_common_props: impl FnOnce())
 {
     let start = Instant::now();
     eprintln!("Analyzing workspace..");
@@ -148,7 +148,7 @@ fn analyze(config: Config, eprintln_common_props: impl FnOnce())
     let excludes: Vec<PathBuf> = workspace_tree.files.distinct().into_iter().collect();
 
     let unrelated = utils::find_unrelated(
-        &git_root, &excludes, &config.files.exclude_patterns);
+        &git_root, &excludes, &config.file_exclude_patterns);
 
     for file in unrelated {
         eprintln!("{}", file.display());
@@ -158,7 +158,7 @@ fn analyze(config: Config, eprintln_common_props: impl FnOnce())
     eprintln!("\nAnalysis finished in {:.2?}", duration);
 }
 
-fn run(config: Config, baseline: &PathBuf, current: &PathBuf, eprintln_common_props: impl FnOnce()) {
+fn run(config: MainConfig, baseline: &PathBuf, current: &PathBuf, eprintln_common_props: impl FnOnce()) {
     eprintln!("Running deltabuild..\n");
     eprintln_common_props();
 
@@ -260,7 +260,7 @@ fn get_impacted_crates(
     baseline_tree: &WorkspaceTree,
     current_tree: &WorkspaceTree,
     git_diff: &GitDiff,
-    config: &Config,
+    config: &MainConfig,
 ) -> Result<Impact> {
     let mut modified = HashSet::new();
 

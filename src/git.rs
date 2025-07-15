@@ -1,14 +1,9 @@
 use normpath::PathExt;
-use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::config::GitConfig;
 use crate::error::*;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GitConfig {
-    pub remote_branch: Option<String>,
-}
 
 #[derive(Debug, Clone)]
 pub struct GitDiff {
