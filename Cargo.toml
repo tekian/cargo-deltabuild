@@ -10,7 +10,11 @@ repository = "https://github.com/tekian/cargo-deltabuild"
 readme = "README.md"
 keywords = ["cargo", "workspace", "ci", "build", "git"]
 categories = ["development-tools", "development-tools::cargo-plugins"]
-exclude = [".gitignore"]
+exclude = [".gitignore", "target/"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 syn = { version = "2.0", features = ["full", "visit"] }

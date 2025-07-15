@@ -20,7 +20,6 @@ pub struct MainConfig {
     pub crate_configs: HashMap<String, ParserConfig>,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GitConfig {
     pub remote_branch: Option<String>,

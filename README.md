@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-`cargo-deltabuild` detects which crates in a Cargo workspace are affected by changes in a Git feature branch. Build, test, and benchmarks only the crates you need—saving time and resources in your CI/CD pipeline.
+`cargo-deltabuild` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch. Build, test, and benchmarks only the crates you need—saving time and resources in your CI/CD pipeline.
 
 - **Robust Detection**: Uses code analysis, pattern matching and runtime heuristics to identify dependencies.
 - **Impact Categorization**: Separates crates into _Modified_, _Affected_, and _Required_ for precise targeting.
@@ -44,7 +44,7 @@ cargo deltabuild analyze -c config.toml # ...
 cargo deltabuild run -c config.toml # ...
 ```
 
-Configuration options can be set globally and overridden per crate. For example, you can enable a feature for all crates, but disable or adjust it for a specific crate in the config file:
+Configuration options can be set globally and overridden per crate. For example:
 
 ```toml
 [parser]
