@@ -1,5 +1,5 @@
 # cargo-deltabuild configuration file
-# This file controls which heuristics the parser uses to detect file dependencies
+# This file shows the default configuration values used by cargo-deltabuild
 
 [parser]
 # Enable/disable file reference detection from method calls like ::file(), ::from_file(), etc.
@@ -28,24 +28,18 @@ include_macros = [
 # Enable/disable following mod declarations to discover module files
 mods = true
 
+# List of custom macro names that declare modules (empty by default)
+mod_macros = []
+
 # Enable/disable assume pattern matching for hard-to-detect dependencies
-assume = true
+assume = false
 
-# List of glob patterns to match files and include them as dependencies
-assume_patterns = ["*.proto", "*.snap"]
+# List of glob patterns to match files and include them as dependencies (empty by default)
+assume_patterns = []
 
-[git]
-# Remote branch to compare against for detecting changes
-remote_branch = "origin/master"
+# Patterns for files and folders to exclude from analysis
+file_exclude_patterns = [".*", "target"]
 
 # Trip wire patterns - if any changed file matches these patterns,
-# all crates in the workspace should be considered affected
-trip_wire_patterns = [
-    "Cargo.toml",           # Root workspace changes
-    "Cargo.lock",           # Dependency changes
-    ".cargo/config.toml",   # Cargo configuration
-    "build.rs",             # Build scripts
-    "config.toml",          # This tool's config
-    "justfile",             # Just build files
-    "Makefile"              # Make build files
-]
+# all crates in the workspace should be considered affected (empty by default)
+trip_wire_patterns = []

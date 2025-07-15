@@ -67,11 +67,18 @@ Follows `mod` declarations and `#[path]` attributes to discover all Rust modules
 
 Discovers modules declared via custom macros (e.g., `my_mod!`), assuming first argument is the name of the module.
 
-Config example (default is empty):
+Config default:
 
 ```toml
 [parser]
-mod_macros = ["my_mod"]
+mod_macros = []
+```
+
+Config example:
+
+```toml
+[parser]
+mod_macros = ["my_mod"]  # my_mod!(foo)
 ```
 
 ### Include Macros
@@ -82,7 +89,11 @@ Config default:
 
 ```toml
 [parser]
-include_macros = ["include_str", "include_bytes"]
+includes = true
+include_macros = [
+    "include_str",   # include_str!("file.txt")
+    "include_bytes"  # include_bytes!("file.bin")
+]
 ```
 
 ### Pattern-based Assumptions
@@ -93,8 +104,16 @@ Config default:
 
 ```toml
 [parser]
+assume = false
+assume_patterns = []
+```
+
+Config example:
+
+```toml
+[parser.grpc_crate]
 assume = true
-assume_patterns = ["*.proto", "*.snap"]
+assume_patterns = [".proto"]
 ```
 
 ### File Method Matching
@@ -106,7 +125,14 @@ Config default:
 ```toml
 [parser]
 file_refs = true
-file_methods = ["file", "from_file", "load", "open", "read", "load_from"]
+file_methods = [
+    "file",       # ::file(path, ...)
+    "from_file",  # ::from_file(path, ...)
+    "load",       # ::load(path, ...)
+    "open",       # ::open(path, ...)
+    "read",       # ::read(path, ...)
+    "load_from"   # ::load_from(path, ...)
+]
 ```
 
 ## File Control Mechanisms
@@ -124,6 +150,13 @@ file_exclude_patterns = ["target/**", "*.tmp"]
 ### Trip Wire
 
 If any changed or deleted file matches a configured trip wire pattern, all crates are considered impacted. Use this for critical files like `Cargo.toml`, build scripts, or configuration files.
+
+Config default:
+
+```toml
+trip_wire_patterns = []
+```
+
 
 Config example:
 
