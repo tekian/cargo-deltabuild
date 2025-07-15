@@ -74,19 +74,26 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::Instant;
 
-mod cargo;
-mod config;
-mod crates;
-mod error;
-mod files;
-mod git;
-mod utils;
-
 use crate::config::MainConfig;
 use crate::crates::Crates;
 use crate::error::Result;
 use crate::files::FileNode;
 use crate::git::GitDiff;
+
+#[doc(hidden)]
+mod cargo;
+#[doc(hidden)]
+mod config;
+#[doc(hidden)]
+mod crates;
+#[doc(hidden)]
+mod error;
+#[doc(hidden)]
+mod files;
+#[doc(hidden)]
+mod git;
+#[doc(hidden)]
+mod utils;
 
 /// Main command-line interface for cargo-deltabuild.
 #[derive(FromArgs)]
@@ -122,6 +129,7 @@ struct RunCommand {
 #[argh(subcommand, name = "analyze", description = "analyze current workspace and produce JSON file")]
 struct AnalyzeCommand {}
 
+#[doc(hidden)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Impact {
     #[serde(rename = "Modified")]
@@ -132,6 +140,7 @@ struct Impact {
     pub required: HashSet<String>,
 }
 
+#[doc(hidden)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct WorkspaceTree {
     pub files: FileNode,
@@ -164,6 +173,7 @@ fn main() {
     }
 }
 
+#[doc(hidden)]
 fn analyze(config: MainConfig, eprintln_common_props: impl FnOnce())
 {
     let start = Instant::now();
@@ -229,6 +239,7 @@ fn analyze(config: MainConfig, eprintln_common_props: impl FnOnce())
     eprintln!("\nAnalysis finished in {:.2?}", duration);
 }
 
+#[doc(hidden)]
 fn run(config: MainConfig, baseline: &PathBuf, current: &PathBuf, eprintln_common_props: impl FnOnce()) {
     eprintln!("Running deltabuild..\n");
     eprintln_common_props();
@@ -327,6 +338,7 @@ fn run(config: MainConfig, baseline: &PathBuf, current: &PathBuf, eprintln_commo
     eprintln!();
 }
 
+#[doc(hidden)]
 fn get_impacted_crates(
     baseline_tree: &WorkspaceTree,
     current_tree: &WorkspaceTree,
