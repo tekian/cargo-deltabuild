@@ -2,6 +2,7 @@
 name = "cargo-deltabuild"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.65"
 license = "MIT"
 authors = ["Jan Guttek <jan@guttek.net>"]
 description = "Detects which crates in a Cargo workspace are affected by changes in a Git feature branch."
