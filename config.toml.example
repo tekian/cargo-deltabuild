@@ -2,11 +2,11 @@
 # This file shows the default configuration values used by cargo-deltabuild
 
 [parser]
-# Enable/disable file reference detection from method calls like ::file(), ::from_file(), etc.
+# Enable/disable file reference detection from method calls.
 file_refs = true
 
-# List of method names that indicate file loading operations
-# Common patterns: API calls that load files by path
+# List of method names that indicate file loading operations.
+# Common patterns: API calls that load files by path.
 file_methods = [
     "file",       # ::file(path, ...)
     "from_file",  # ::from_file(path, ...)
@@ -16,30 +16,30 @@ file_methods = [
     "load_from"   # ::load_from(path, ...)
 ]
 
-# Enable/disable detection of include macros like include_str!(), include_bytes!()
+# Enable/disable detection of include macros.
 includes = true
 
-# List of macro names that include files at compile time
+# List of macro names that include files at compile time.
 include_macros = [
     "include_str",   # include_str!("file.txt")
     "include_bytes"  # include_bytes!("file.bin")
 ]
 
-# Enable/disable following mod declarations to discover module files
+# Enable/disable following mod declarations to discover module files.
 mods = true
 
-# List of custom macro names that declare modules (empty by default)
+# List of custom macro names that declare modules.
 mod_macros = []
 
-# Enable/disable assume pattern matching for hard-to-detect dependencies
+# Enable/disable assume pattern matching for hard-to-detect dependencies.
 assume = false
 
-# List of glob patterns to match files and include them as dependencies (empty by default)
+# List of glob patterns to match files and include them as dependencies.
 assume_patterns = []
 
-# Patterns for files and folders to exclude from analysis
+# Patterns for files and folders to exclude from analysis.
 file_exclude_patterns = [".*", "target"]
 
 # Trip wire patterns - if any changed file matches these patterns,
-# all crates in the workspace should be considered affected (empty by default)
+# all crates in the workspace are going to be considered impacted.
 trip_wire_patterns = []

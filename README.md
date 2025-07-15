@@ -149,7 +149,7 @@ file_exclude_patterns = ["target/**", "*.tmp"]
 
 ### Trip Wire
 
-If any changed or deleted file matches a configured trip wire pattern, all crates are considered impacted. Use this for critical files like `Cargo.toml`, build scripts, or configuration files.
+If any changed or deleted file matches a configured trip wire pattern, all crates are considered impacted. Use this for critical files like top-level `Cargo.toml`, build scripts, or configuration files.
 
 Config default:
 
