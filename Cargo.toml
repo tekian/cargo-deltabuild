@@ -13,6 +13,10 @@ keywords = ["cargo", "workspace", "ci", "build", "git"]
 categories = ["development-tools", "development-tools::cargo-plugins"]
 exclude = [".gitignore", "target/"]
 
+[[bin]]
+name = "cargo-deltabuild"
+path = "src/main.rs"
+
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

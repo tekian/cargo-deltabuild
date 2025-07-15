@@ -148,7 +148,18 @@ struct WorkspaceTree {
 }
 
 fn main() {
-    let cli: Args = argh::from_env();
+    // Handle both "cargo deltabuild" and direct invocations
+    let args: Vec<String> = std::env::args().collect();
+    let skip = if args.len() > 1 && args[1] == "deltabuild" { 2 } else { 1 };
+
+    let cli: Args = Args::from_args(
+        &[args[0].as_str()],
+        &args[skip..].iter().map(|s| s.as_str()).collect::<Vec<_>>()
+    ).unwrap_or_else(|early_exit| {
+        eprintln!("{}", early_exit.output);
+        std::process::exit(if early_exit.status.is_ok() { 0 } else { 1 });
+    });
+
     let config = match config::load_config(cli.config.clone()) {
         Ok(i) => i,
         Err(e) => {
