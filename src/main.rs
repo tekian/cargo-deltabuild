@@ -247,7 +247,7 @@ fn run(config: MainConfig, baseline: &PathBuf, current: &PathBuf, eprintln_commo
 
     eprintln!(
         "{:<11} {:>3} {}", "Required",
-        required_crates_len, "(Affected crates plus all their dependencies.)");
+        required_crates_len, "(Affected crates plus all their dependencies, direct and indirect.)");
 
     eprintln!(
         "{:<11} {:>3} {}", "Total",

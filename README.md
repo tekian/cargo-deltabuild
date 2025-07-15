@@ -6,7 +6,7 @@
 
 - **Robust Detection**: Uses code analysis, pattern matching and runtime heuristics to identify dependencies.
 - **Impact Categorization**: Separates crates into _Modified_, _Affected_, and _Required_ for precise targeting.
-- **Configurability**: Highly customizable via `config.toml`, with per-crate overrides for parsing and detection.
+- **Configurability**: Highly customizable via config, with per-crate overrides for parsing and detection.
 - **Dual-branch Git Detection**: Compares two branches or commits to find both modified and deleted files.
 - **File Control Mechanisms**: Exclude files from analysis or trigger a full rebuild when critical files change.
 
@@ -63,38 +63,49 @@ Default settings are provided in [`config.toml.example`](./config.toml.example).
 
 Follows `mod` declarations and `#[path]` attributes to discover all Rust modules in the workspace.
 
-### Include Macros
+### Mod Macros
 
-Detects files included via macros such as `include_str!` and `include_bytes!`. 
+Discovers modules declared via custom macros (e.g., `my_mod!`), assuming first argument is the name of the module.
 
-Config example:
+Config example (default is empty):
 
 ```toml
 [parser]
-include_macros = ["include_str", "include_bytes"] # default
+mod_macros = ["my_mod"]
+```
+
+### Include Macros
+
+Detects files included via macros such as `include_str!` and `include_bytes!`, assuming the first argument is the name of the file.
+
+Config default:
+
+```toml
+[parser]
+include_macros = ["include_str", "include_bytes"]
 ```
 
 ### Pattern-based Assumptions
 
 Assumes certain files are dependencies based on glob patterns (e.g., `*.proto`, `*.snap`).
 
-Config example:
+Config default:
 
 ```toml
 [parser]
-assume = true # default: true
+assume = true
 assume_patterns = ["*.proto", "*.snap"]
 ```
 
 ### File Method Matching
 
-Detects files loaded at runtime by matching method names (e.g., `from_file`, `load`, `open`).
+Detects files loaded at runtime by matching method names (e.g., `from_file`, `load`, `open`), assuming the first argument is the name of the file.
 
-Config example:
+Config default:
 
 ```toml
 [parser]
-file_refs = true # default: true
+file_refs = true
 file_methods = ["file", "from_file", "load", "open", "read", "load_from"]
 ```
 
@@ -103,7 +114,8 @@ file_methods = ["file", "from_file", "load", "open", "read", "load_from"]
 ### File Exclusion
 
 Exclude files and folders from analysis using glob patterns. Useful for ignoring build artifacts, temp files, etc.
-Config example:
+
+Config default:
 
 ```toml
 file_exclude_patterns = ["target/**", "*.tmp"]
@@ -112,25 +124,33 @@ file_exclude_patterns = ["target/**", "*.tmp"]
 ### Trip Wire
 
 If any changed or deleted file matches a configured trip wire pattern, all crates are considered impacted. Use this for critical files like `Cargo.toml`, build scripts, or configuration files.
+
 Config example:
 
 ```toml
 trip_wire_patterns = [
-    "Cargo.toml",
-    "Cargo.lock",
-    ".cargo/config.toml",
-    "build.rs",
-    "config.toml"
+    "Cargo.toml",       # top-level Cargo.toml
+    "deltabuild.toml"   # DeltaBuild config file
 ]
 ```
 
-## Output Format
+## Understanding Output
 
-The tool outputs JSON with three categories of affected crates:
+### Analyze
 
-- **Modified**: Crates directly modified by Git changes
-- **Affected**: Modified crates plus all their dependents (direct and indirect)
-- **Required**: All crates needed - affected crates plus all their dependencies
+Analyze phase produces JSON file that's intended to be consumed by `run` phase.
+
+- **files**: Nested tree of file dependencies as detected by all the heuristics.
+- **crates**: Dependency relationships between crates within the workspace.
+
+### Run
+
+Run phase produces JSON file that's intended to be consumed by _your_ CI/CD.
+
+- **Modified**: Crates directly modified by Git changes. 
+- **Affected**: Modified crates plus all their dependents, direct and indirect.
+- **Required**: Affected crates plus all their dependencies, direct and indirect.
+
 
 ## Limitations
 
@@ -140,22 +160,10 @@ This tool is **best-effort** and may not detect all dependencies:
 - Conditional compilation dependencies
 - Other dependencies not captured by the heuristics
 
-**Note**: Use trip wire patterns for critical files that should trigger full rebuilds when changed (e.g., workspace configuration, build scripts).
-
 
 ## Example
 
 ```bash
-# Analyze current workspace
-$ cargo deltabuild analyze > feature.json
-Analyzing workspace..
-
-Found 15 crate(s) in the workspace.
-Found 247 file(s) in the workspace.
-
-Analysis finished in 1.23s
-
-# Compare with baseline
 $ cargo deltabuild run --baseline main.json --current feature.json
 Running deltabuild..
 
@@ -187,7 +195,7 @@ Using current analysis  : feature.json
 
 Modified      2 (Crates directly modified by Git changes.)
 Affected      3 (Modified crates plus all their dependents, direct and indirect.)
-Required      4 (Affected crates plus all their dependencies.)
+Required      4 (Affected crates plus all their dependencies, direct and indirect.)
 Total        15 (Total crates in this workspace.)
 ```
 
