@@ -1,18 +1,26 @@
 [package]
 name = "cargo-deltabuild"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 license = "MIT"
+authors = ["Jan Guttek <jan@guttek.net>"]
+description = "Detects which crates in a Cargo workspace are affected by changes in a Git feature branch."
+homepage = "https://github.com/tekian/cargo-deltabuild"
+repository = "https://github.com/tekian/cargo-deltabuild"
+readme = "README.md"
+keywords = ["cargo", "workspace", "ci", "build", "git"]
+categories = ["development-tools", "development-tools::cargo-plugins"]
+exclude = [".gitignore"]
 
 [dependencies]
-syn = { version = "2.0.104", features = ["full", "visit"] }
-walkdir = "2.5.0"
+syn = { version = "2.0", features = ["full", "visit"] }
+walkdir = "2.5"
 argh = "0.1"
-toml = "0.8"
+toml = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-regex = "1.0"
-normpath = "1.0"
+regex = "1.11"
+normpath = "1.3"
 glob = "0.3"
-thiserror = "2.0.12"
+thiserror = "2.0"
 encoding_rs = "0.8"
