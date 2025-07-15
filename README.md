@@ -8,7 +8,7 @@
 
 - **Static Detection**: Analyzes the full dependency graph, following Rust modules, includes, and patterns.
 - **Runtime Detection**: Detects dynamically loaded files using common method signatures and custom patterns.
-- **Impact Categorization**: Separates crates into Modified, Affected, and Required for precise CI/CD targeting.
+- **Impact Categorization**: Separates crates into _Modified_, _Affected_, and _Required_ for precise CI/CD targeting.
 - **Configurability**: Highly customizable via `config.toml`, with per-crate overrides for parsing and detection.
 - **Dual-branch Git Detection**: Compares two branches or commits to find both modified and deleted files.
 
@@ -20,48 +20,22 @@ cargo install cargo-deltabuild
 
 ## Usage
 
-The tool operates in two phases:
+1. **Check out the baseline branch and analyze:**
+   ```bash
+   git checkout main
+   cargo deltabuild analyze > main.json
+   ```
 
-### 1. Analyze Phase
+2. **Check out your feature branch and analyze:**
+   ```bash
+   git checkout feature-branch
+   cargo deltabuild analyze > feature.json
+   ```
 
-First, analyze your workspace to create a dependency tree:
-
-```bash
-cargo deltabuild analyze > analysis.json
-```
-
-This command:
-- Scans your Cargo workspace
-- Analyzes Rust source files for dependencies
-- Outputs a JSON file containing the complete dependency graph
-
-### 2. Run Phase
-
-Compare two analysis files to determine affected crates:
-
-```bash
-cargo deltabuild run --baseline baseline.json --current current.json
-```
-
-This command:
-- Compares the current branch against a baseline
-- Uses git to detect changed/deleted files
-- Outputs affected crates as JSON
-
-## Typical CI/CD Workflow
-
-```bash
-# On your main branch
-git checkout main
-cargo deltabuild analyze > main.json
-
-# On your feature branch
-git checkout feature-branch
-cargo deltabuild analyze > feature.json
-
-# Find affected crates
-cargo deltabuild run --baseline main.json --current feature.json
-```
+3. **Compare analyses to find affected crates:**
+   ```bash
+   cargo deltabuild run --baseline main.json --current feature.json
+   ```
 
 ## Configuration
 
