@@ -2,27 +2,20 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A **best-effort** tool designed to identify which crates in a Cargo workspace are impacted by changes in a Git feature branch. By analyzing dependencies and detecting affected crates, this tool helps optimize CI/CD pipelines. It enables targeted builds, tests, benchmarks, or mutations on a smaller subset of crates, reducing build times in large projects.
+`cargo-deltabuild` detects which crates in a Cargo workspace are affected by changes in a Git feature branch. Build, test, and benchmarks only the crates you need—saving time and resources in your CI/CD pipeline.
 
 ## Features
 
-- 🔍 **Dependency Analysis**: Analyses Rust workspace and builds dependency tree.
-- 📊 **Git Integration**: Compares changes against a baseline branch to determine affected files.
-- 🎯 **Crate Impact**: Identifies which crates are affected by file changes using the tree.
-- ⚙️ **Configurable**: Supports custom configuration for different parsing strategies
+- **Static Detection**: Analyzes the full dependency graph, following Rust modules, includes, and patterns.
+- **Runtime Detection**: Detects dynamically loaded files using common method signatures and custom patterns.
+- **Impact Categorization**: Separates crates into Modified, Affected, and Required for precise CI/CD targeting.
+- **Configurability**: Highly customizable via `config.toml`, with per-crate overrides for parsing and detection.
+- **Dual-branch Git Detection**: Compares two branches or commits to find both modified and deleted files.
 
 ## Installation
 
 ```bash
 cargo install cargo-deltabuild
-```
-
-Or build from source:
-
-```bash
-git clone https://github.com/tekian/cargo-deltabuild
-cd cargo-deltabuild
-cargo build --release
 ```
 
 ## Usage
