@@ -1,6 +1,13 @@
 # cargo-deltabuild configuration file
 # This file shows the default configuration values used by cargo-deltabuild
 
+# Patterns for files and folders to exclude from analysis.
+file_exclude_patterns = [".*", "target"]
+
+# Trip wire patterns - if any changed file matches these patterns,
+# all crates in the workspace are going to be considered impacted.
+trip_wire_patterns = []
+
 [parser]
 # Enable/disable file reference detection from method calls.
 file_refs = true
@@ -37,9 +44,7 @@ assume = false
 # List of glob patterns to match files and include them as dependencies.
 assume_patterns = []
 
-# Patterns for files and folders to exclude from analysis.
-file_exclude_patterns = [".*", "target"]
-
-# Trip wire patterns - if any changed file matches these patterns,
-# all crates in the workspace are going to be considered impacted.
-trip_wire_patterns = []
+[git]
+# The remote branch to compare against for determining changed files
+# If not specified, uses the default branch detection
+remote_branch = "origin/main"
