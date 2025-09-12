@@ -1,4 +1,5 @@
 use normpath::PathExt;
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -11,16 +12,37 @@ pub struct GitDiff {
     pub deleted: Vec<PathBuf>,
 }
 
+enum GitBranch<'a> {
+    Feature(Cow<'a, str>),
+    Main(&'static str),
+}
+
+impl<'a> GitBranch<'a> {
+    fn as_str(&self) -> &str {
+        match self {
+            GitBranch::Feature(b) => b,
+            GitBranch::Main(b) => b,
+        }
+    }
+}
+
 pub fn diff(workspace_path: &Path, config: Option<GitConfig>) -> Result<GitDiff> {
-    let remote_branch = config
-        .as_ref()
-        .and_then(|d| d.remote_branch.as_deref())
-        .unwrap_or("origin/master");
+    let remote_branch = match config.as_ref().and_then(|d| d.remote_branch.as_deref()) {
+        Some(b) => GitBranch::Feature(Cow::Borrowed(b)),
+        None => {
+            let main_branch = best_effort_main_branch(workspace_path)?;
+            eprintln!(
+                "No remote branch specified, using {} as base remote branch",
+                main_branch
+            );
+            GitBranch::Main(main_branch)
+        }
+    };
 
     let merge_base_output = Command::new("git")
         .arg("merge-base")
         .arg("HEAD")
-        .arg(remote_branch)
+        .arg(remote_branch.as_str())
         .current_dir(workspace_path)
         .output()
         .map_err(|e| Error::Git(format!("Failed to run git merge-base: {}", e)))?;
@@ -119,4 +141,32 @@ pub fn get_top_level() -> Result<PathBuf> {
         .unwrap_or(git_root_path);
 
     Ok(normalized_path)
+}
+
+fn best_effort_main_branch(workspace_path: &Path) -> Result<&'static str> {
+    let candidates = ["origin/master", "origin/main", "origin/trunk"];
+
+    for remote_name in &candidates {
+        let branch_name = remote_name.trim_start_matches("origin/");
+
+        let output = Command::new("git")
+            .arg("ls-remote")
+            .arg("--heads")
+            .arg("origin")
+            .arg(branch_name)
+            .current_dir(workspace_path)
+            .output()
+            .map_err(|e| Error::Git(format!("Failed to run git ls-remote: {}", e)))?;
+
+        // `git ls-remote` always exits with status 0 irrespective of branch existence
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if !stdout.trim().is_empty() {
+                return Ok(remote_name);
+            }
+        }
+    }
+
+    // If no common main branch is found, default to 'origin/master' (best effort)
+    Ok("origin/master")
 }
