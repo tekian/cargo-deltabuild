@@ -123,3 +123,103 @@ impl Crates {
         self.crates.keys().cloned().collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_crates(deps: &[(&str, &[&str])]) -> Crates {
+        let mut crates = HashMap::new();
+        for (name, dep_list) in deps {
+            let _ = crates.insert((*name).to_string(), dep_list.iter().map(|d| (*d).to_string()).collect());
+        }
+        Crates { crates }
+    }
+
+    #[test]
+    fn get_dependencies_returns_direct_deps() {
+        let c = make_crates(&[("app", &["lib-a", "lib-b"]), ("lib-a", &[]), ("lib-b", &[])]);
+        let deps = c.get_dependencies("app").unwrap();
+        assert_eq!(deps, &["lib-a".to_string(), "lib-b".to_string()]);
+    }
+
+    #[test]
+    fn get_dependencies_returns_none_for_unknown() {
+        let c = make_crates(&[("app", &[])]);
+        assert!(c.get_dependencies("nonexistent").is_none());
+    }
+
+    #[test]
+    fn get_dependents_finds_reverse_deps() {
+        let c = make_crates(&[("app", &["lib"]), ("cli", &["lib"]), ("lib", &[])]);
+        let mut dependents = c.get_dependents("lib").unwrap();
+        dependents.sort();
+        assert_eq!(dependents, vec!["app", "cli"]);
+    }
+
+    #[test]
+    fn get_dependents_returns_none_for_unknown() {
+        let c = make_crates(&[("app", &[])]);
+        assert!(c.get_dependents("nonexistent").is_none());
+    }
+
+    #[test]
+    fn get_dependents_returns_empty_for_root() {
+        let c = make_crates(&[("app", &["lib"]), ("lib", &[])]);
+        let dependents = c.get_dependents("app").unwrap();
+        assert!(dependents.is_empty());
+    }
+
+    #[test]
+    fn get_dependencies_transitive_walks_chain() {
+        // app -> lib-a -> lib-b -> lib-c
+        let c = make_crates(&[("app", &["lib-a"]), ("lib-a", &["lib-b"]), ("lib-b", &["lib-c"]), ("lib-c", &[])]);
+        let mut deps = c.get_dependencies_transitive("app").unwrap();
+        deps.sort();
+        assert_eq!(deps, vec!["lib-a", "lib-b", "lib-c"]);
+    }
+
+    #[test]
+    fn get_dependencies_transitive_handles_diamond() {
+        // app -> (a, b), a -> c, b -> c
+        let c = make_crates(&[("app", &["a", "b"]), ("a", &["c"]), ("b", &["c"]), ("c", &[])]);
+        let mut deps = c.get_dependencies_transitive("app").unwrap();
+        deps.sort();
+        assert_eq!(deps, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn get_dependencies_transitive_returns_none_for_unknown() {
+        let c = make_crates(&[("app", &[])]);
+        assert!(c.get_dependencies_transitive("nonexistent").is_none());
+    }
+
+    #[test]
+    fn get_dependents_transitive_walks_chain() {
+        // a -> b -> c (so dependents of a: b, c)
+        let c = make_crates(&[("c", &["b"]), ("b", &["a"]), ("a", &[])]);
+        let mut deps = c.get_dependents_transitive("a").unwrap();
+        deps.sort();
+        assert_eq!(deps, vec!["b", "c"]);
+    }
+
+    #[test]
+    fn get_dependents_transitive_returns_none_for_unknown() {
+        let c = make_crates(&[("app", &[])]);
+        assert!(c.get_dependents_transitive("nonexistent").is_none());
+    }
+
+    #[test]
+    fn len_returns_crate_count() {
+        let c = make_crates(&[("a", &[]), ("b", &[]), ("c", &[])]);
+        assert_eq!(c.len(), 3);
+    }
+
+    #[test]
+    fn get_all_crate_names_returns_all() {
+        let c = make_crates(&[("alpha", &[]), ("beta", &[])]);
+        let mut names = c.get_all_crate_names();
+        names.sort();
+        assert_eq!(names, vec!["alpha", "beta"]);
+    }
+}

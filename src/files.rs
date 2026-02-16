@@ -477,3 +477,114 @@ pub fn build_tree(metadata: &CargoMetadata, crates: &[&CargoCrate], config: &Mai
 
     root_node
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_file_node_has_no_children() {
+        let node = FileNode::new(PathBuf::from("src/main.rs"), FileKind::Target);
+        assert_eq!(node.path, PathBuf::from("src/main.rs"));
+        assert_eq!(node.kind, FileKind::Target);
+        assert!(node.children.is_empty());
+    }
+
+    #[test]
+    fn add_child_appends() {
+        let mut parent = FileNode::new(PathBuf::from("root"), FileKind::Workspace);
+        let child = FileNode::new(PathBuf::from("child.rs"), FileKind::Module);
+        parent.add_child(child);
+        assert_eq!(parent.children.len(), 1);
+        assert_eq!(parent.children[0].path, PathBuf::from("child.rs"));
+    }
+
+    #[test]
+    fn add_child_deduplicates_by_path() {
+        let mut parent = FileNode::new(PathBuf::from("root"), FileKind::Workspace);
+        parent.add_child(FileNode::new(PathBuf::from("a.rs"), FileKind::Module));
+        parent.add_child(FileNode::new(PathBuf::from("a.rs"), FileKind::Target));
+        parent.add_child(FileNode::new(PathBuf::from("b.rs"), FileKind::Module));
+        assert_eq!(parent.children.len(), 2);
+    }
+
+    #[test]
+    fn len_counts_self_and_all_descendants() {
+        let mut root = FileNode::new(PathBuf::from("root"), FileKind::Workspace);
+        let mut child = FileNode::new(PathBuf::from("child"), FileKind::Crate);
+        child.add_child(FileNode::new(PathBuf::from("grandchild"), FileKind::Module));
+        root.add_child(child);
+        // Each node contributes (children_sum + 1), where each child contributes (child.len() + 1)
+        // grandchild: 1, child: (1+1)+1=3, root: (3+1)+1=5
+        assert_eq!(root.len(), 5);
+    }
+
+    #[test]
+    fn len_leaf_is_one() {
+        let leaf = FileNode::new(PathBuf::from("leaf.rs"), FileKind::Module);
+        assert_eq!(leaf.len(), 1);
+    }
+
+    #[test]
+    fn distinct_collects_unique_paths() {
+        let mut root = FileNode::new(PathBuf::from("root"), FileKind::Workspace);
+        let mut child = FileNode::new(PathBuf::from("a.rs"), FileKind::Crate);
+        child.add_child(FileNode::new(PathBuf::from("b.rs"), FileKind::Module));
+        root.add_child(child);
+        root.add_child(FileNode::new(PathBuf::from("c.rs"), FileKind::Module));
+
+        let paths = root.distinct();
+        assert_eq!(paths.len(), 4);
+        assert!(paths.contains(&PathBuf::from("root")));
+        assert!(paths.contains(&PathBuf::from("a.rs")));
+        assert!(paths.contains(&PathBuf::from("b.rs")));
+        assert!(paths.contains(&PathBuf::from("c.rs")));
+    }
+
+    #[test]
+    fn make_relative_paths_strips_prefix() {
+        let ws = PathBuf::from("/workspace");
+        let mut root = FileNode::new(PathBuf::from("/workspace/Cargo.toml"), FileKind::Workspace);
+        root.add_child(FileNode::new(PathBuf::from("/workspace/src/main.rs"), FileKind::Target));
+
+        root.make_relative_paths(&ws);
+
+        assert_eq!(root.path, PathBuf::from("Cargo.toml"));
+        assert_eq!(root.children[0].path, PathBuf::from("src/main.rs"));
+    }
+
+    #[test]
+    fn make_relative_paths_preserves_unrelated() {
+        let ws = PathBuf::from("/workspace");
+        let mut node = FileNode::new(PathBuf::from("/other/file.rs"), FileKind::Module);
+        node.make_relative_paths(&ws);
+        assert_eq!(node.path, PathBuf::from("/other/file.rs"));
+    }
+
+    #[test]
+    fn find_crates_containing_file_finds_match() {
+        let mut root = FileNode::new(PathBuf::from("Cargo.toml"), FileKind::Workspace);
+        let mut crate_node = FileNode::new(PathBuf::from("my-crate/Cargo.toml"), FileKind::Crate);
+        crate_node.add_child(FileNode::new(PathBuf::from("my-crate/src/lib.rs"), FileKind::Target));
+        root.add_child(crate_node);
+
+        let target = PathBuf::from("my-crate/src/lib.rs");
+        let crates = root.find_crates_containing_file(&target);
+        assert_eq!(crates, vec!["my-crate"]);
+    }
+
+    #[test]
+    fn find_crates_containing_file_returns_empty_for_no_match() {
+        let root = FileNode::new(PathBuf::from("Cargo.toml"), FileKind::Workspace);
+        let target = PathBuf::from("nonexistent.rs");
+        let crates = root.find_crates_containing_file(&target);
+        assert!(crates.is_empty());
+    }
+
+    #[test]
+    fn file_kind_display() {
+        assert_eq!(FileKind::Workspace.to_string(), "Workspace");
+        assert_eq!(FileKind::Module.to_string(), "Module");
+        assert_eq!(FileKind::Unset.to_string(), "Unset");
+    }
+}

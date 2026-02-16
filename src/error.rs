@@ -46,3 +46,23 @@ impl From<&str> for Error {
         Self::Other(msg.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_from_str() {
+        let err = Error::from("something failed");
+        assert_eq!(err.to_string(), "something failed");
+    }
+
+    #[test]
+    fn error_display_variants() {
+        let err = Error::CargoCommand("bad".to_string());
+        assert_eq!(err.to_string(), "Cargo command failed: bad");
+
+        let err = Error::Git("no remote".to_string());
+        assert_eq!(err.to_string(), "Git operation failed: no remote");
+    }
+}
