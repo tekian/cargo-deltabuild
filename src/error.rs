@@ -1,4 +1,4 @@
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -35,7 +35,7 @@ pub enum Error {
     },
 
     #[error(transparent)]
-    SynError(#[from] syn::Error),
+    Syn(#[from] syn::Error),
 
     #[error("{0}")]
     Other(String),
@@ -43,6 +43,6 @@ pub enum Error {
 
 impl From<&str> for Error {
     fn from(msg: &str) -> Self {
-        Error::Other(msg.to_string())
+        Self::Other(msg.to_string())
     }
 }

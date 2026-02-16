@@ -4,7 +4,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{error::{Error, Result}};
+use crate::error::{Error, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MainConfig {
@@ -26,6 +26,7 @@ pub struct GitConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[expect(clippy::struct_excessive_bools, reason = "configuration struct mirrors TOML schema")]
 pub struct ParserConfig {
     #[serde(default = "default_true")]
     pub file_refs: bool,
@@ -52,7 +53,7 @@ impl Default for ParserConfig {
     }
 }
 
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 
@@ -60,22 +61,19 @@ fn default_file_excludes() -> Vec<String> {
     vec![".*".to_string(), "target".to_string()]
 }
 
-fn default_false() -> bool {
+const fn default_false() -> bool {
     false
 }
 
 fn default_file_methods() -> HashSet<String> {
     ["file", "from_file", "load", "open", "read", "load_from"]
         .iter()
-        .map(|s| s.to_string())
+        .map(|s| (*s).to_string())
         .collect()
 }
 
 fn default_include_macros() -> HashSet<String> {
-    ["include_str", "include_bytes"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect()
+    ["include_str", "include_bytes"].iter().map(|s| (*s).to_string()).collect()
 }
 
 fn default_mod_macros() -> HashSet<String> {
@@ -91,11 +89,8 @@ impl Default for MainConfig {
 
 impl MainConfig {
     pub fn crate_config(&self, crate_name: &str) -> ParserConfig {
-        let crate_key = format!("parser.{}", crate_name);
-        self.crate_configs
-            .get(&crate_key)
-            .cloned()
-            .unwrap_or_else(|| self.parser.clone())
+        let crate_key = format!("parser.{crate_name}");
+        self.crate_configs.get(&crate_key).cloned().unwrap_or_else(|| self.parser.clone())
     }
 }
 

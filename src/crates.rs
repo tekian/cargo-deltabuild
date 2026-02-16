@@ -15,8 +15,8 @@ pub fn parse(metadata: &CargoMetadata) -> Crates {
         if package.source.is_some() {
             continue;
         }
-        workspace.insert(package.name.clone());
-        dependencies.insert(package.name.clone(), Vec::new());
+        let _ = workspace.insert(package.name.clone());
+        let _ = dependencies.insert(package.name.clone(), Vec::new());
     }
 
     for package in &metadata.packages {
@@ -37,9 +37,7 @@ pub fn parse(metadata: &CargoMetadata) -> Crates {
         }
     }
 
-    Crates {
-        crates: dependencies,
-    }
+    Crates { crates: dependencies }
 }
 
 impl Crates {
@@ -76,17 +74,14 @@ impl Crates {
             if visited.contains(&current_crate) {
                 continue;
             }
-            visited.insert(current_crate.clone());
+            let _ = visited.insert(current_crate.clone());
 
-            match self.get_dependencies(&current_crate) {
-                Some(dependencies) => {
-                    for dependency in dependencies {
-                        if all_dependencies.insert(dependency.clone()) {
-                            to_visit.push(dependency.clone());
-                        }
+            if let Some(dependencies) = self.get_dependencies(&current_crate) {
+                for dependency in dependencies {
+                    if all_dependencies.insert(dependency.clone()) {
+                        to_visit.push(dependency.clone());
                     }
                 }
-                None => {}
             }
         }
 
@@ -106,17 +101,14 @@ impl Crates {
             if visited.contains(&current_crate) {
                 continue;
             }
-            visited.insert(current_crate.clone());
+            let _ = visited.insert(current_crate.clone());
 
-            match self.get_dependents(&current_crate) {
-                Some(dependents) => {
-                    for dependent in dependents {
-                        if all_dependents.insert(dependent.clone()) {
-                            to_visit.push(dependent.clone());
-                        }
+            if let Some(dependents) = self.get_dependents(&current_crate) {
+                for dependent in dependents {
+                    if all_dependents.insert(dependent.clone()) {
+                        to_visit.push(dependent.clone());
                     }
                 }
-                None => {}
             }
         }
 

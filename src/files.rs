@@ -14,7 +14,7 @@ use crate::{
     utils,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum FileKind {
     Workspace,     // Top-level Cargo.toml with [workspace]
     Crate,         // Crate-level Cargo.toml
@@ -30,20 +30,21 @@ pub enum FileKind {
 impl fmt::Display for FileKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            FileKind::Workspace => write!(f, "Workspace"),
-            FileKind::Crate => write!(f, "Crate"),
-            FileKind::Target => write!(f, "Target"),
-            FileKind::Module => write!(f, "Module"),
-            FileKind::ModulePath => write!(f, "ModulePath"),
-            FileKind::MacroInclude => write!(f, "MacroInclude"),
-            FileKind::FileReference => write!(f, "FileReference"),
-            FileKind::Assume => write!(f, "Assume"),
-            FileKind::Unset => write!(f, "Unset"),
+            Self::Workspace => write!(f, "Workspace"),
+            Self::Crate => write!(f, "Crate"),
+            Self::Target => write!(f, "Target"),
+            Self::Module => write!(f, "Module"),
+            Self::ModulePath => write!(f, "ModulePath"),
+            Self::MacroInclude => write!(f, "MacroInclude"),
+            Self::FileReference => write!(f, "FileReference"),
+            Self::Assume => write!(f, "Assume"),
+            Self::Unset => write!(f, "Unset"),
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[expect(clippy::use_self, reason = "Self cannot be used in struct field definitions")]
 pub struct FileNode {
     pub path: PathBuf,
     pub kind: FileKind,
@@ -51,7 +52,7 @@ pub struct FileNode {
 }
 
 impl FileNode {
-    pub fn new(path: PathBuf, kind: FileKind) -> Self {
+    pub const fn new(path: PathBuf, kind: FileKind) -> Self {
         Self {
             path,
             kind,
@@ -59,24 +60,20 @@ impl FileNode {
         }
     }
 
-    pub fn add_child(&mut self, child: FileNode) {
-        if !self
-            .children
-            .iter()
-            .any(|existing| existing.path == child.path)
-        {
+    pub fn add_child(&mut self, child: Self) {
+        if !self.children.iter().any(|existing| existing.path == child.path) {
             self.children.push(child);
         }
     }
 
-    pub fn to_relative_paths(&mut self, workspace_root: &Path) {
+    pub fn make_relative_paths(&mut self, workspace_root: &Path) {
         self.path = match self.path.strip_prefix(workspace_root) {
             Ok(relative) => relative.to_path_buf(),
             Err(_) => self.path.clone(),
         };
 
         for child in &mut self.children {
-            child.to_relative_paths(workspace_root);
+            child.make_relative_paths(workspace_root);
         }
     }
 
@@ -86,7 +83,7 @@ impl FileNode {
 
     pub fn distinct(&self) -> HashSet<PathBuf> {
         let mut paths = HashSet::new();
-        paths.insert(self.path.clone());
+        let _ = paths.insert(self.path.clone());
 
         for child in &self.children {
             paths.extend(child.distinct());
@@ -96,27 +93,19 @@ impl FileNode {
     }
 
     pub fn find_crates_containing_file(&self, target_file: &PathBuf) -> Vec<String> {
-        fn visit(
-            node: &FileNode,
-            target_file: &PathBuf,
-            current_crate: Option<&str>,
-            results: &mut Vec<String>,
-        ) {
+        fn visit(node: &FileNode, target_file: &PathBuf, current_crate: Option<&str>, results: &mut Vec<String>) {
             let current_crate = if matches!(node.kind, FileKind::Crate) {
-                node.path
-                    .parent()
-                    .and_then(|p| p.file_name())
-                    .and_then(|n| n.to_str())
+                node.path.parent().and_then(|p| p.file_name()).and_then(|n| n.to_str())
             } else {
                 current_crate
             };
 
-            if &node.path == target_file {
-                if let Some(crate_name) = current_crate {
-                    let crate_string = crate_name.to_string();
-                    if !results.contains(&crate_string) {
-                        results.push(crate_string);
-                    }
+            if &node.path == target_file
+                && let Some(crate_name) = current_crate
+            {
+                let crate_string = crate_name.to_string();
+                if !results.contains(&crate_string) {
+                    results.push(crate_string);
                 }
             }
 
@@ -157,90 +146,83 @@ impl<'a> SourceVisitor<'a> {
     }
 }
 
-impl<'a, 'ast> Visit<'ast> for SourceVisitor<'a> {
-    fn visit_item_const(&mut self, node: &'ast syn::ItemConst) {
+impl<'ast> Visit<'ast> for SourceVisitor<'_> {
+    fn visit_item_const(&mut self, i: &'ast syn::ItemConst) {
         if let syn::Expr::Lit(syn::ExprLit {
             lit: syn::Lit::Str(lit_str),
             ..
-        }) = &*node.expr
+        }) = &*i.expr
         {
-            self.constants
-                .insert(node.ident.to_string(), lit_str.value());
+            let _ = self.constants.insert(i.ident.to_string(), lit_str.value());
         }
-        syn::visit::visit_item_const(self, node);
+        syn::visit::visit_item_const(self, i);
     }
 
-    fn visit_item_static(&mut self, node: &'ast syn::ItemStatic) {
+    fn visit_item_static(&mut self, i: &'ast syn::ItemStatic) {
         if let syn::Expr::Lit(syn::ExprLit {
             lit: syn::Lit::Str(lit_str),
             ..
-        }) = &*node.expr
+        }) = &*i.expr
         {
-            self.constants
-                .insert(node.ident.to_string(), lit_str.value());
+            let _ = self.constants.insert(i.ident.to_string(), lit_str.value());
         }
-        syn::visit::visit_item_static(self, node);
+        syn::visit::visit_item_static(self, i);
     }
 
-    fn visit_expr_call(&mut self, node: &'ast syn::ExprCall) {
+    fn visit_expr_call(&mut self, i: &'ast syn::ExprCall) {
         if !self.config.file_refs {
-            syn::visit::visit_expr_call(self, node);
+            syn::visit::visit_expr_call(self, i);
             return;
         }
 
-        if let syn::Expr::Path(syn::ExprPath { path, .. }) = &*node.func {
-            if let Some(last) = path.segments.last() {
-                let method = last.ident.to_string();
-                if !self.config.file_methods.contains(&method) {
-                    syn::visit::visit_expr_call(self, node);
-                    return;
-                }
-                if let Some(first_arg) = node.args.first() {
-                    if let Some(path) = self.expr_to_str(first_arg) {
-                        self.file_refs.push(path);
-                    }
-                }
+        if let syn::Expr::Path(syn::ExprPath { path, .. }) = &*i.func
+            && let Some(last) = path.segments.last()
+        {
+            let method = last.ident.to_string();
+            if !self.config.file_methods.contains(&method) {
+                syn::visit::visit_expr_call(self, i);
+                return;
+            }
+            if let Some(first_arg) = i.args.first()
+                && let Some(path) = self.expr_to_str(first_arg)
+            {
+                self.file_refs.push(path);
             }
         }
 
-        syn::visit::visit_expr_call(self, node);
+        syn::visit::visit_expr_call(self, i);
     }
 
-    fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
-        let mod_name = node.ident.to_string();
+    fn visit_item_mod(&mut self, i: &'ast syn::ItemMod) {
+        let mod_name = i.ident.to_string();
         self.current_path.push(mod_name.clone());
 
-        if node.content.is_none() {
-            if let Some(custom_path) = self.extract_path(&node.attrs) {
+        if i.content.is_none() {
+            if let Some(custom_path) = self.extract_path(&i.attrs) {
                 self.mod_paths.push((mod_name, custom_path));
             } else if self.current_path.len() == 1 {
                 self.mods.push(mod_name);
             } else {
-                let parent = self
-                    .current_path
-                    .iter()
-                    .take(self.current_path.len() - 1)
-                    .cloned()
-                    .collect();
+                let parent = self.current_path.iter().take(self.current_path.len() - 1).cloned().collect();
 
                 self.nested_mods.push((parent, mod_name));
             }
         }
 
-        syn::visit::visit_item_mod(self, node);
-        self.current_path.pop();
+        syn::visit::visit_item_mod(self, i);
+        let _ = self.current_path.pop();
     }
 
-    fn visit_item_macro(&mut self, node: &'ast syn::ItemMacro) {
-        let Some(ident) = node.mac.path.get_ident() else {
-            syn::visit::visit_item_macro(self, node);
+    fn visit_item_macro(&mut self, i: &'ast syn::ItemMacro) {
+        let Some(ident) = i.mac.path.get_ident() else {
+            syn::visit::visit_item_macro(self, i);
             return;
         };
 
         let macro_name = ident.to_string();
 
         if self.config.mods && self.config.mod_macros.contains(&macro_name) {
-            let tokens_str = node.mac.tokens.to_string();
+            let tokens_str = i.mac.tokens.to_string();
 
             if let Some(first_arg) = tokens_str.split(',').next() {
                 let mod_name = first_arg.trim().to_string();
@@ -255,41 +237,36 @@ impl<'a, 'ast> Visit<'ast> for SourceVisitor<'a> {
             }
         }
 
-        syn::visit::visit_item_macro(self, node);
+        syn::visit::visit_item_macro(self, i);
     }
 
-    fn visit_expr_macro(&mut self, node: &'ast syn::ExprMacro) {
-        let Some(ident) = node.mac.path.get_ident() else {
-            syn::visit::visit_expr_macro(self, node);
+    fn visit_expr_macro(&mut self, i: &'ast syn::ExprMacro) {
+        let Some(ident) = i.mac.path.get_ident() else {
+            syn::visit::visit_expr_macro(self, i);
             return;
         };
 
         let macro_name = ident.to_string();
 
-        if self.config.includes && self.config.include_macros.contains(&macro_name) {
-            if let Ok(syn::Lit::Str(lit_str)) = node.mac.parse_body::<syn::Lit>() {
-                self.includes.push(lit_str.value());
-            }
+        if self.config.includes
+            && self.config.include_macros.contains(&macro_name)
+            && let Ok(syn::Lit::Str(lit_str)) = i.mac.parse_body::<syn::Lit>()
+        {
+            self.includes.push(lit_str.value());
         }
 
-        syn::visit::visit_expr_macro(self, node);
+        syn::visit::visit_expr_macro(self, i);
     }
 }
 
-impl<'a> SourceVisitor<'a> {
+impl SourceVisitor<'_> {
     fn expr_to_str(&self, expr: &syn::Expr) -> Option<String> {
         match expr {
             syn::Expr::Lit(syn::ExprLit {
                 lit: syn::Lit::Str(lit_str),
                 ..
             }) => Some(lit_str.value()),
-            syn::Expr::Path(syn::ExprPath { path, .. }) => {
-                if let Some(ident) = path.get_ident() {
-                    self.constants.get(&ident.to_string()).cloned()
-                } else {
-                    None
-                }
-            }
+            syn::Expr::Path(syn::ExprPath { path, .. }) => self.constants.get(&path.get_ident()?.to_string()).cloned(),
             _ => None,
         }
     }
@@ -300,10 +277,10 @@ impl<'a> SourceVisitor<'a> {
                 continue;
             }
 
-            if let Ok(meta) = attr.meta.require_name_value() {
-                if let Some(path) = self.expr_to_str(&meta.value) {
-                    return Some(path);
-                }
+            if let Ok(meta) = attr.meta.require_name_value()
+                && let Some(path) = self.expr_to_str(&meta.value)
+            {
+                return Some(path);
             }
         }
         None
@@ -323,8 +300,8 @@ fn parse_rust<'a>(path: &Path, config: &'a ParserConfig) -> Result<SourceVisitor
 fn resolve_mod_files(base: &Path, mods: &[String]) -> Vec<PathBuf> {
     let mut files = Vec::new();
     for module in mods {
-        let mod_rs_path = base.join(format!("{}/mod.rs", module));
-        let direct_rs_path = base.join(format!("{}.rs", module));
+        let mod_rs_path = base.join(format!("{module}/mod.rs"));
+        let direct_rs_path = base.join(format!("{module}.rs"));
 
         if mod_rs_path.exists() {
             files.push(mod_rs_path);
@@ -368,7 +345,7 @@ fn build_file_node(
         return node; // Avoid infinite recursion
     }
 
-    visited.insert(file_path.to_path_buf());
+    let _ = visited.insert(file_path.to_path_buf());
 
     let config = main_config.crate_config(crate_name);
     let Ok(visitor) = parse_rust(file_path, &config) else {
@@ -392,8 +369,7 @@ fn build_file_node(
         let mod_files = resolve_mod_files(&actual_base, &visitor.mods);
 
         for mod_file in mod_files {
-            let mut child_node =
-                build_file_node(&mod_file, visited, workspace_root, main_config, crate_name);
+            let mut child_node = build_file_node(&mod_file, visited, workspace_root, main_config, crate_name);
 
             child_node.kind = FileKind::Module;
             node.add_child(child_node);
@@ -405,11 +381,10 @@ fn build_file_node(
                 parent_dir = parent_dir.join(component);
             }
 
-            let nested_mod_files = resolve_mod_files(&parent_dir, &[nested_mod_name.clone()]);
+            let nested_mod_files = resolve_mod_files(&parent_dir, core::slice::from_ref(nested_mod_name));
 
             for mod_file in nested_mod_files {
-                let mut child_node =
-                    build_file_node(&mod_file, visited, workspace_root, main_config, crate_name);
+                let mut child_node = build_file_node(&mod_file, visited, workspace_root, main_config, crate_name);
 
                 child_node.kind = FileKind::Module;
                 node.add_child(child_node);
@@ -417,13 +392,9 @@ fn build_file_node(
         }
 
         for (_, custom_path) in &visitor.mod_paths {
-            match utils::resolve(file_path, custom_path) {
-                Some(path) => {
-                    let child = FileNode::new(path, FileKind::ModulePath);
-                    node.add_child(child);
-                }
-
-                None => {}
+            if let Some(path) = utils::resolve(file_path, custom_path) {
+                let child = FileNode::new(path, FileKind::ModulePath);
+                node.add_child(child);
             }
         }
     }
@@ -436,9 +407,7 @@ fn build_file_node(
 
     for file_ref in &visitor.file_refs {
         let maybe_path = utils::resolve(file_path, file_ref);
-        let resolved_path = maybe_path.or_else(|| {
-            workspace_root.and_then(|ws| utils::resolve_workspace_relative(ws, file_ref))
-        });
+        let resolved_path = maybe_path.or_else(|| utils::resolve_workspace_relative(workspace_root?, file_ref));
 
         if let Some(path) = resolved_path {
             node.add_child(FileNode::new(path, FileKind::FileReference));
@@ -480,13 +449,7 @@ pub fn build_tree(metadata: &CargoMetadata, crates: &[&CargoCrate], config: &Mai
         for target in &crate_.targets {
             let mut target_node = FileNode::new(target.src_path.clone(), FileKind::Target);
 
-            let source_tree = build_file_node(
-                &target.src_path,
-                &mut visited,
-                Some(&metadata.workspace_root),
-                config,
-                &crate_.name,
-            );
+            let source_tree = build_file_node(&target.src_path, &mut visited, Some(&metadata.workspace_root), config, &crate_.name);
 
             for child in source_tree.children {
                 target_node.add_child(child);
@@ -496,15 +459,16 @@ pub fn build_tree(metadata: &CargoMetadata, crates: &[&CargoCrate], config: &Mai
         }
 
         let parser_config = config.crate_config(&crate_.name);
-        if parser_config.assume && !parser_config.assume_patterns.is_empty() {
-            if let Some(crate_root) = crate_.manifest_path.parent() {
-                let assume_files = find_assume_files(crate_root, &parser_config.assume_patterns);
+        if parser_config.assume
+            && !parser_config.assume_patterns.is_empty()
+            && let Some(crate_root) = crate_.manifest_path.parent()
+        {
+            let assume_files = find_assume_files(crate_root, &parser_config.assume_patterns);
 
-                for assume_file in assume_files {
-                    let assume_node = FileNode::new(assume_file, FileKind::Assume);
+            for assume_file in assume_files {
+                let assume_node = FileNode::new(assume_file, FileKind::Assume);
 
-                    node.add_child(assume_node);
-                }
+                node.add_child(assume_node);
             }
         }
 

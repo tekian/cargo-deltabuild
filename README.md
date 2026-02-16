@@ -5,7 +5,7 @@
 [![Coverage](https://codecov.io/gh/tekian/cargo-deltabuild/graph/badge.svg)](https://codecov.io/gh/tekian/cargo-deltabuild)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-`cargo-deltabuild` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch. Build, test, and benchmarks only the crates you need—saving time and resources in your CI/CD pipeline.
+`cargo-deltabuild` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch. Build, test, and benchmark only the crates you need, saving time and resources in your CI/CD pipeline.
 
 - **Robust Detection**: Uses code analysis, pattern matching and runtime heuristics to identify dependencies.
 - **Impact Categorization**: Separates crates into _Modified_, _Affected_, and _Required_ for precise targeting.
