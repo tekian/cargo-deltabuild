@@ -1,72 +1,6 @@
-//! # cargo-deltabuild
-//!
+#![doc(hidden)]
+
 //! `cargo-deltabuild` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch.
-//! Build, test, and benchmark only the crates you need—saving time and resources in your CI/CD pipeline.
-//!
-//! For detailed configuration examples and usage information, see the [README.md](https://github.com/tekian/cargo-deltabuild).
-//!
-//! ## Features
-//!
-//! - **Robust Detection**: Uses code analysis, pattern matching and runtime heuristics to identify dependencies.
-//! - **Impact Categorization**: Separates crates into _Modified_, _Affected_, and _Required_ for precise targeting.
-//! - **Configurability**: Highly customizable via config, with per-crate overrides for parsing and detection.
-//! - **Dual-branch Git Detection**: Compares two branches or commits to find both modified and deleted files.
-//! - **File Control Mechanisms**: Exclude files from analysis or trigger a full rebuild when critical files change.
-//!
-//! ## Installation
-//!
-//! ```bash
-//! cargo install cargo-deltabuild
-//! ```
-//!
-//! ## Usage
-//!
-//! 1. **Check out the baseline branch and analyze:**
-//!    ```bash
-//!    git checkout main
-//!    cargo deltabuild analyze > main.json
-//!    ```
-//!
-//! 2. **Check out your feature branch and analyze:**
-//!    ```bash
-//!    git checkout feature-branch
-//!    cargo deltabuild analyze > feature.json
-//!    ```
-//!
-//! 3. **Compare analyses to find impacted crates:**
-//!    ```bash
-//!    cargo deltabuild run --baseline main.json --current feature.json
-//!    ```
-//!
-//! ## Configuration
-//!
-//! You can customize `cargo-deltabuild` by providing a `-c config.toml` argument to the command.
-//!
-//! ```bash
-//! cargo deltabuild analyze -c config.toml # ...
-//! cargo deltabuild run -c config.toml # ...
-//! ```
-//!
-//! Configuration options can be set globally and overridden per crate. For example:
-//!
-//! ```toml
-//! [parser]
-//! foo = true
-//! foo_patterns = ["*.foo", "*.bar"]
-//!
-//! [parser.my-crate]
-//! foo_patterns = ["*.baz"] # Override for a specific crate
-//! ```
-//!
-//! Default settings are provided in [config.toml.example](https://github.com/tekian/cargo-deltabuild/blob/main/config.toml.example).
-//!
-//! ## Output Format
-//!
-//! The tool outputs JSON with three categories of impacted crates:
-//!
-//! - **Modified**: Crates directly modified by Git changes.
-//! - **Affected**: Modified crates plus all their dependents, direct and indirect.
-//! - **Required**: Affected crates plus all their dependencies, direct and indirect.
 
 use argh::FromArgs;
 use serde::{Deserialize, Serialize};
@@ -80,19 +14,12 @@ use crate::error::Result;
 use crate::files::FileNode;
 use crate::git::GitDiff;
 
-#[doc(hidden)]
 mod cargo;
-#[doc(hidden)]
 mod config;
-#[doc(hidden)]
 mod crates;
-#[doc(hidden)]
 mod error;
-#[doc(hidden)]
 mod files;
-#[doc(hidden)]
 mod git;
-#[doc(hidden)]
 mod utils;
 
 /// Main command-line interface for cargo-deltabuild.
