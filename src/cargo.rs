@@ -36,10 +36,7 @@ pub struct CargoDependency {
 pub fn metadata() -> Result<CargoMetadata> {
     let mut cmd = Command::new("cargo");
 
-    cmd.arg("metadata")
-        .arg("--format-version")
-        .arg("1")
-        .arg("--no-deps");
+    let _ = cmd.arg("metadata").arg("--format-version").arg("1").arg("--no-deps");
 
     let output = cmd.output()?;
 
@@ -55,16 +52,12 @@ pub fn metadata() -> Result<CargoMetadata> {
     metadata.workspace_root = metadata
         .workspace_root
         .normalize()
-        .map(|p| p.into_path_buf())
+        .map(normpath::BasePathBuf::into_path_buf)
         .unwrap_or(metadata.workspace_root);
 
     Ok(metadata)
 }
 
-pub fn get_workspace_crates<'a>(metadata: &'a CargoMetadata) -> Vec<&'a CargoCrate> {
-    metadata
-        .packages
-        .iter()
-        .filter(|pkg| pkg.source.is_none())
-        .collect()
+pub fn get_workspace_crates(metadata: &CargoMetadata) -> Vec<&CargoCrate> {
+    metadata.packages.iter().filter(|pkg| pkg.source.is_none()).collect()
 }

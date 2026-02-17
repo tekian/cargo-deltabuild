@@ -9,13 +9,12 @@ use std::path::{Path, PathBuf};
 pub fn deser_json<T: DeserializeOwned>(file_path: &Path) -> Result<T> {
     let file_path_str = file_path.display().to_string();
 
-    let bytes = std::fs::read(file_path).map_err(|source| Error::JsonFileRead {
+    let bytes = fs::read(file_path).map_err(|source| Error::JsonFileRead {
         file: file_path_str.clone(),
         source,
     })?;
 
-    let (encoding, bytes_without_bom) =
-        Encoding::for_bom(&bytes).unwrap_or((encoding_rs::UTF_8, 0));
+    let (encoding, bytes_without_bom) = Encoding::for_bom(&bytes).unwrap_or((encoding_rs::UTF_8, 0));
 
     let bytes_to_decode = if bytes_without_bom > 0 {
         &bytes[bytes_without_bom..]
@@ -27,7 +26,7 @@ pub fn deser_json<T: DeserializeOwned>(file_path: &Path) -> Result<T> {
 
     if error {
         return Err(Error::JsonFileRead {
-            file: file_path_str.clone(),
+            file: file_path_str,
             source: std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Unable to decode file: {}", encoding.name()),
@@ -48,10 +47,7 @@ pub fn resolve_includes(base: &Path, includes: &[String]) -> Vec<PathBuf> {
         if let Some(resolved_path) = resolve(base, include_path) {
             files.push(resolved_path);
         } else {
-            eprintln!(
-                "Warning: Could not resolve include_str! path: {}",
-                include_path
-            );
+            eprintln!("Warning: Could not resolve include_str! path: {include_path}");
         }
     }
 
@@ -62,70 +58,34 @@ pub fn resolve(base: &Path, relative_path: &str) -> Option<PathBuf> {
     let base_dir = base.parent()?;
     let candidate_path = base_dir.join(relative_path);
 
-    match candidate_path.normalize() {
-        Ok(normalized) => {
+    candidate_path.normalize().map_or_else(
+        |_| candidate_path.exists().then_some(candidate_path),
+        |normalized| {
             let path_buf = normalized.into_path_buf();
-            if path_buf.exists() {
-                Some(path_buf)
-            } else {
-                None
-            }
-        }
-        Err(_) => {
-            if candidate_path.exists() {
-                Some(candidate_path)
-            } else {
-                None
-            }
-        }
-    }
+            path_buf.exists().then_some(path_buf)
+        },
+    )
 }
 
 pub fn resolve_workspace_relative(workspace: &Path, relative_path: &str) -> Option<PathBuf> {
     let candidate_path = workspace.join(relative_path);
 
-    match candidate_path.normalize() {
-        Ok(normalized) => {
+    candidate_path.normalize().map_or_else(
+        |_| candidate_path.exists().then_some(candidate_path),
+        |normalized| {
             let path_buf = normalized.into_path_buf();
-            if path_buf.exists() {
-                Some(path_buf)
-            } else {
-                None
-            }
-        }
-        Err(_) => {
-            if candidate_path.exists() {
-                Some(candidate_path)
-            } else {
-                None
-            }
-        }
-    }
+            path_buf.exists().then_some(path_buf)
+        },
+    )
 }
 
-pub fn find_unrelated(
-    git_root: &Path,
-    excludes: &[PathBuf],
-    exclude_patterns: &[String],
-) -> Vec<PathBuf> {
-    let excludes_processed: Vec<PathBuf> = excludes
-        .iter()
-        .filter_map(|p| p.normalize().ok().map(|n| n.into_path_buf()))
-        .collect();
-
-    let compiled: Vec<Pattern> = exclude_patterns
-        .iter()
-        .filter_map(|pattern| Pattern::new(pattern).ok())
-        .collect();
-
-    let mut files = Vec::new();
-
+pub fn find_unrelated(git_root: &Path, excludes: &[PathBuf], exclude_patterns: &[String]) -> Vec<PathBuf> {
     fn visit(
         dir: &Path,
         git_root: &Path,
         excludes: &[PathBuf],
         excludes_processed: &[PathBuf],
-        exclude_patterns_compiled: &[Pattern],
+        compiled_patterns: &[Pattern],
         result: &mut Vec<PathBuf>,
     ) {
         let Ok(entries) = fs::read_dir(dir) else {
@@ -136,24 +96,14 @@ pub fn find_unrelated(
             let path = entry.path();
 
             // Check if path matches any glob pattern
-            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if exclude_patterns_compiled
-                    .iter()
-                    .any(|pattern| pattern.matches(name))
-                {
-                    continue;
-                }
+            if let Some(name) = path.file_name().and_then(|n| n.to_str())
+                && compiled_patterns.iter().any(|pattern| pattern.matches(name))
+            {
+                continue;
             }
 
             if path.is_dir() {
-                visit(
-                    &path,
-                    git_root,
-                    excludes,
-                    excludes_processed,
-                    exclude_patterns_compiled,
-                    result,
-                );
+                visit(&path, git_root, excludes, excludes_processed, compiled_patterns, result);
                 continue;
             }
 
@@ -170,12 +120,10 @@ pub fn find_unrelated(
                 continue;
             }
 
-            let excluded = match relative_path.normalize() {
-                Ok(i) => excludes_processed.contains(&i.into_path_buf()),
-                Err(_) => false,
-            };
-
-            if excluded {
+            if relative_path
+                .normalize()
+                .is_ok_and(|i| excludes_processed.contains(&i.into_path_buf()))
+            {
                 continue;
             }
 
@@ -183,6 +131,14 @@ pub fn find_unrelated(
         }
     }
 
+    let excludes_processed: Vec<PathBuf> = excludes
+        .iter()
+        .filter_map(|p| p.normalize().ok().map(normpath::BasePathBuf::into_path_buf))
+        .collect();
+
+    let compiled: Vec<Pattern> = exclude_patterns.iter().filter_map(|pattern| Pattern::new(pattern).ok()).collect();
+
+    let mut files = Vec::new();
     visit(git_root, git_root, excludes, &excludes_processed, &compiled, &mut files);
     files
 }

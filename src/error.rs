@@ -1,4 +1,4 @@
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -35,7 +35,7 @@ pub enum Error {
     },
 
     #[error(transparent)]
-    SynError(#[from] syn::Error),
+    Syn(#[from] syn::Error),
 
     #[error("{0}")]
     Other(String),
@@ -43,6 +43,26 @@ pub enum Error {
 
 impl From<&str> for Error {
     fn from(msg: &str) -> Self {
-        Error::Other(msg.to_string())
+        Self::Other(msg.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn error_from_str() {
+        let err = Error::from("something failed");
+        assert_eq!(err.to_string(), "something failed");
+    }
+
+    #[test]
+    fn error_display_variants() {
+        let err = Error::CargoCommand("bad".to_string());
+        assert_eq!(err.to_string(), "Cargo command failed: bad");
+
+        let err = Error::Git("no remote".to_string());
+        assert_eq!(err.to_string(), "Git operation failed: no remote");
     }
 }
