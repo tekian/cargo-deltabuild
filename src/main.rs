@@ -2,7 +2,9 @@
 
 //! `cargo-deltabuild` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch.
 
-use argh::FromArgs;
+use clap::builder::Styles;
+use clap::builder::styling::{AnsiColor, Effects};
+use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -21,40 +23,58 @@ mod files;
 mod git;
 mod utils;
 
-/// Main command-line interface for cargo-deltabuild.
-#[derive(FromArgs)]
-#[argh(description = "Tool to identify impacted crates from git changes.")]
+const CLAP_STYLES: Styles = Styles::styled()
+    .header(AnsiColor::Green.on_default().effects(Effects::BOLD))
+    .usage(AnsiColor::Green.on_default().effects(Effects::BOLD))
+    .literal(AnsiColor::Cyan.on_default().effects(Effects::BOLD))
+    .placeholder(AnsiColor::Cyan.on_default());
+
+/// Top-level CLI wrapper for `cargo deltabuild`.
+#[derive(Parser)]
+#[command(name = "cargo-deltabuild", bin_name = "cargo", version, styles = CLAP_STYLES)]
+struct Cli {
+    #[command(subcommand)]
+    command: CargoSubcommand,
+}
+
+#[derive(Subcommand)]
+enum CargoSubcommand {
+    Deltabuild(Args),
+}
+
+/// Identify impacted crates from git changes.
+#[derive(Parser)]
+#[command(name = "cargo-deltabuild", version, display_name = "cargo-deltabuild")]
+#[command(about = "Identify impacted crates from git changes")]
 struct Args {
-    /// path to the config file
-    #[argh(option, short = 'c')]
+    /// Path to the config file
+    #[arg(short = 'c', long)]
     config: Option<PathBuf>,
 
-    #[argh(subcommand)]
+    #[command(subcommand)]
     command: Commands,
 }
 
-#[derive(FromArgs)]
-#[argh(subcommand)]
+#[derive(Subcommand)]
 enum Commands {
+    /// Run deltabuild and show impacted crates
     Run(RunCommand),
+    /// Analyze current workspace and produce JSON output
     Analyze(AnalyzeCommand),
 }
 
-#[derive(FromArgs)]
-#[argh(subcommand, name = "run", description = "run deltabuild and show impacted crates")]
+#[derive(Parser)]
 struct RunCommand {
-    /// baseline workspace analysis JSON file (e.g., from main branch)
-    #[argh(option)]
+    /// Baseline workspace analysis JSON file (e.g., from main branch)
+    #[arg(long)]
     baseline: PathBuf,
-    /// current workspace analysis JSON file (e.g., from feature branch)
-    #[argh(option)]
+    /// Current workspace analysis JSON file (e.g., from feature branch)
+    #[arg(long)]
     current: PathBuf,
 }
 
-#[derive(FromArgs)]
-#[argh(subcommand, name = "analyze", description = "analyze current workspace and produce JSON file")]
-#[expect(clippy::empty_structs_with_brackets, reason = "required by argh FromArgs derive")]
-struct AnalyzeCommand {}
+#[derive(Parser)]
+struct AnalyzeCommand;
 
 #[doc(hidden)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,15 +95,7 @@ struct WorkspaceTree {
 }
 
 fn main() {
-    // Handle both "cargo deltabuild" and direct invocations
-    let args: Vec<String> = std::env::args().collect();
-    let skip = if args.len() > 1 && args[1] == "deltabuild" { 2 } else { 1 };
-
-    let cli: Args =
-        Args::from_args(&[args[0].as_str()], &args[skip..].iter().map(String::as_str).collect::<Vec<_>>()).unwrap_or_else(|early_exit| {
-            eprintln!("{}", early_exit.output);
-            std::process::exit(i32::from(early_exit.status.is_err()));
-        });
+    let CargoSubcommand::Deltabuild(cli) = Cli::parse().command;
 
     let config = match config::load_config(cli.config.clone()) {
         Ok(i) => i,

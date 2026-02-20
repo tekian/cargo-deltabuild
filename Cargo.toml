@@ -13,13 +13,13 @@ keywords = ["cargo", "workspace", "ci", "build", "git"]
 categories = ["development-tools", "development-tools::cargo-plugins"]
 
 [dependencies]
-argh = { version = "0.1.14", default-features = false }
+clap = { version = "4.4.5", default-features = false, features = ["derive", "std", "help", "usage", "error-context", "color"] }
 encoding_rs = { version = "0.8.35", default-features = false, features = ["alloc"] }
 glob = { version = "0.3.3", default-features = false }
-normpath = { version = "1.3.0", default-features = false }
+normpath = { version = "1.5.0", default-features = false }
 serde = { version = "1.0.228", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "1.0.149", default-features = false, features = ["std"] }
-syn = { version = "2.0.116", default-features = false, features = ["full", "visit", "parsing", "printing"] }
+syn = { version = "2.0.117", default-features = false, features = ["full", "visit", "parsing", "printing"] }
 thiserror = { version = "2.0.18", default-features = false }
 toml = { version = "0.9.8", default-features = false, features = ["parse", "display", "serde"] }
 
