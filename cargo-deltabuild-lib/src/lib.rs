@@ -1,6 +1,8 @@
 #![doc(hidden)]
+#![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
-//! `cargo-deltabuild` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch.
+//! This is an implementation detail of the cargo-deltabuild tool. Do not take a dependency on this crate
+//! as it may change in incompatible ways without warning.
 
 use clap::builder::Styles;
 use clap::builder::styling::{AnsiColor, Effects};
@@ -94,8 +96,9 @@ struct WorkspaceTree {
     pub crates: Crates,
 }
 
-fn main() {
-    let CargoSubcommand::Deltabuild(cli) = Cli::parse().command;
+/// Run the cargo-deltabuild tool with the given command-line arguments.
+pub fn run(args: impl IntoIterator<Item = String>) {
+    let CargoSubcommand::Deltabuild(cli) = Cli::parse_from(args).command;
 
     let config = match config::load_config(cli.config.clone()) {
         Ok(i) => i,
@@ -113,7 +116,7 @@ fn main() {
     };
 
     match &cli.command {
-        Commands::Run(run_cmd) => run(&config, &run_cmd.baseline, &run_cmd.current, eprintln_common_props),
+        Commands::Run(run_cmd) => run_command(&config, &run_cmd.baseline, &run_cmd.current, eprintln_common_props),
 
         Commands::Analyze(_) => analyze(&config, eprintln_common_props),
     }
@@ -184,7 +187,7 @@ fn analyze(config: &MainConfig, eprintln_common_props: impl FnOnce()) {
 }
 
 #[doc(hidden)]
-fn run(config: &MainConfig, baseline: &Path, current: &Path, eprintln_common_props: impl FnOnce()) {
+fn run_command(config: &MainConfig, baseline: &Path, current: &Path, eprintln_common_props: impl FnOnce()) {
     eprintln!("Running deltabuild..\n");
     eprintln_common_props();
 
