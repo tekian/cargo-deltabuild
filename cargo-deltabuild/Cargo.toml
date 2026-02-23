@@ -1,0 +1,20 @@
+[package]
+name = "cargo-deltabuild"
+description = "Detects which crates in a Cargo workspace are affected by changes in a Git feature branch."
+keywords = ["cargo", "workspace", "ci", "build", "git"]
+categories = ["development-tools", "development-tools::cargo-plugins"]
+readme = "../README.md"
+authors = ["Jan Guttek <jan@guttek.net>"]
+
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+
+[dependencies]
+cargo-deltabuild-lib.workspace = true
+
+[lints]
+workspace = true
