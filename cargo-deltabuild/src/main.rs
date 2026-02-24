@@ -1,7 +1,7 @@
-#![doc(hidden)]
-
-//! A cargo tool to detect impacted crates from git changes.
+//! Deprecated: this crate has been renamed to `cargo-delta`.
 
 fn main() {
-    cargo_deltabuild_lib::run(std::env::args());
+    eprintln!("cargo-deltabuild has been renamed to cargo-delta.");
+    eprintln!("Please upgrade: cargo install cargo-delta");
+    std::process::exit(1);
 }

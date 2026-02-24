@@ -1,6 +1,6 @@
 [package]
-name = "cargo-deltabuild-lib"
-description = "Internal library for cargo-deltabuild"
+name = "cargo-delta-lib"
+description = "Internal library for cargo-delta"
 keywords = ["cargo", "workspace", "ci", "build", "git"]
 categories = ["development-tools"]
 readme = "../README.md"

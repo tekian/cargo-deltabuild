@@ -1,17 +1,17 @@
 [workspace]
-members = ["cargo-deltabuild", "cargo-deltabuild-lib"]
+members = ["cargo-delta", "cargo-delta-lib", "cargo-deltabuild"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.93.0"
 license = "MIT"
-repository = "https://github.com/tekian/cargo-deltabuild"
-homepage = "https://github.com/tekian/cargo-deltabuild"
+repository = "https://github.com/tekian/cargo-delta"
+homepage = "https://github.com/tekian/cargo-delta"
 
 [workspace.dependencies]
-cargo-deltabuild-lib = { version = "0.1.0", path = "cargo-deltabuild-lib", default-features = false }
+cargo-delta-lib = { version = "0.2.0", path = "cargo-delta-lib", default-features = false }
 clap = { version = "4.5.60", default-features = false }
 encoding_rs = { version = "0.8.35", default-features = false }
 glob = { version = "0.3.3", default-features = false }
