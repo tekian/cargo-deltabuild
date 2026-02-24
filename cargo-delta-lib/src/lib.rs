@@ -184,10 +184,10 @@ fn analyze(config: &MainConfig, eprintln_common_props: impl FnOnce()) {
         eprintln!("Trip wire patterns      : {}", config.trip_wire_patterns.join(", "));
     }
 
-    if !unrelated.excluded.is_empty() {
+    if !unrelated.filtered.is_empty() {
         eprintln!();
         eprintln!("Excluded file(s): (filtered out by exclude patterns)");
-        for file in &unrelated.excluded {
+        for file in &unrelated.filtered {
             eprintln!("  {}", file.display());
         }
     }

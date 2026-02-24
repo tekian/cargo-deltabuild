@@ -82,7 +82,7 @@ pub fn resolve_workspace_relative(workspace: &Path, relative_path: &str) -> Opti
 pub struct UnrelatedFiles {
     pub unaccounted: Vec<PathBuf>,
     pub trip_wire: Vec<PathBuf>,
-    pub excluded: Vec<PathBuf>,
+    pub filtered: Vec<PathBuf>,
 }
 
 pub fn find_unrelated(
@@ -98,9 +98,7 @@ pub fn find_unrelated(
         excludes_processed: &[PathBuf],
         compiled_patterns: &[Pattern],
         compiled_trip_wires: &[Pattern],
-        unaccounted: &mut Vec<PathBuf>,
-        trip_wire: &mut Vec<PathBuf>,
-        excluded: &mut Vec<PathBuf>,
+        result: &mut UnrelatedFiles,
     ) {
         let Ok(entries) = fs::read_dir(dir) else {
             return;
@@ -112,10 +110,10 @@ pub fn find_unrelated(
             if let Some(name) = path.file_name().and_then(|n| n.to_str())
                 && compiled_patterns.iter().any(|pattern| pattern.matches(name))
             {
-                if path.is_file() {
-                    if let Ok(rel) = path.strip_prefix(git_root) {
-                        excluded.push(rel.to_path_buf());
-                    }
+                if path.is_file()
+                    && let Ok(rel) = path.strip_prefix(git_root)
+                {
+                    result.filtered.push(rel.to_path_buf());
                 }
                 continue;
             }
@@ -128,9 +126,7 @@ pub fn find_unrelated(
                     excludes_processed,
                     compiled_patterns,
                     compiled_trip_wires,
-                    unaccounted,
-                    trip_wire,
-                    excluded,
+                    result,
                 );
                 continue;
             }
@@ -157,9 +153,9 @@ pub fn find_unrelated(
 
             let file_str = relative_path.to_string_lossy();
             if compiled_trip_wires.iter().any(|pattern| pattern.matches(&file_str)) {
-                trip_wire.push(relative_path);
+                result.trip_wire.push(relative_path);
             } else {
-                unaccounted.push(relative_path);
+                result.unaccounted.push(relative_path);
             }
         }
     }
@@ -174,9 +170,11 @@ pub fn find_unrelated(
     let compiled_trip_wires: Vec<Pattern> =
         trip_wire_patterns.iter().filter_map(|pattern| Pattern::new(pattern).ok()).collect();
 
-    let mut unaccounted = Vec::new();
-    let mut trip_wire = Vec::new();
-    let mut excluded = Vec::new();
+    let mut result = UnrelatedFiles {
+        unaccounted: Vec::new(),
+        trip_wire: Vec::new(),
+        filtered: Vec::new(),
+    };
     visit(
         git_root,
         git_root,
@@ -184,13 +182,7 @@ pub fn find_unrelated(
         &excludes_processed,
         &compiled,
         &compiled_trip_wires,
-        &mut unaccounted,
-        &mut trip_wire,
-        &mut excluded,
+        &mut result,
     );
-    UnrelatedFiles {
-        unaccounted,
-        trip_wire,
-        excluded,
-    }
+    result
 }
