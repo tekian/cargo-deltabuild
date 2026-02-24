@@ -85,12 +85,7 @@ pub struct UnrelatedFiles {
     pub filtered: Vec<PathBuf>,
 }
 
-pub fn find_unrelated(
-    git_root: &Path,
-    excludes: &[PathBuf],
-    exclude_patterns: &[String],
-    trip_wire_patterns: &[String],
-) -> UnrelatedFiles {
+pub fn find_unrelated(git_root: &Path, excludes: &[PathBuf], exclude_patterns: &[String], trip_wire_patterns: &[String]) -> UnrelatedFiles {
     fn visit(
         dir: &Path,
         git_root: &Path,
@@ -167,8 +162,7 @@ pub fn find_unrelated(
 
     let compiled: Vec<Pattern> = exclude_patterns.iter().filter_map(|pattern| Pattern::new(pattern).ok()).collect();
 
-    let compiled_trip_wires: Vec<Pattern> =
-        trip_wire_patterns.iter().filter_map(|pattern| Pattern::new(pattern).ok()).collect();
+    let compiled_trip_wires: Vec<Pattern> = trip_wire_patterns.iter().filter_map(|pattern| Pattern::new(pattern).ok()).collect();
 
     let mut result = UnrelatedFiles {
         unaccounted: Vec::new(),
