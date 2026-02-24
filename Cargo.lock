@@ -55,6 +55,9 @@ dependencies = [
 [[package]]
 name = "cargo-delta"
 version = "0.2.0"
+dependencies = [
+ "cargo-delta-lib",
+]
 
 [[package]]
 name = "cargo-delta-lib"
