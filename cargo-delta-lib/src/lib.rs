@@ -172,14 +172,40 @@ fn analyze(config: &MainConfig, eprintln_common_props: impl FnOnce()) {
     }
 
     eprintln!();
-    eprintln!("CAUTION: The following files are *NOT* considered compilation inputs:");
-
     let excludes: Vec<PathBuf> = workspace_tree.files.distinct().into_iter().collect();
 
-    let unrelated = utils::find_unrelated(&git_root, &excludes, &config.file_exclude_patterns);
+    let unrelated = utils::find_unrelated(&git_root, &excludes, &config.file_exclude_patterns, &config.trip_wire_patterns);
 
-    for file in unrelated {
-        eprintln!("{}", file.display());
+    if !config.file_exclude_patterns.is_empty() {
+        eprintln!("Excluded patterns       : {}", config.file_exclude_patterns.join(", "));
+    }
+
+    if !config.trip_wire_patterns.is_empty() {
+        eprintln!("Trip wire patterns      : {}", config.trip_wire_patterns.join(", "));
+    }
+
+    if !unrelated.excluded.is_empty() {
+        eprintln!();
+        eprintln!("Excluded file(s): (filtered out by exclude patterns)");
+        for file in &unrelated.excluded {
+            eprintln!("  {}", file.display());
+        }
+    }
+
+    if !unrelated.trip_wire.is_empty() {
+        eprintln!();
+        eprintln!("Trip wire file(s): (changes to these trigger a full rebuild)");
+        for file in &unrelated.trip_wire {
+            eprintln!("  {}", file.display());
+        }
+    }
+
+    if !unrelated.unaccounted.is_empty() {
+        eprintln!();
+        eprintln!("Needs triage: (unknown impact, not matched by any rule)");
+        for file in &unrelated.unaccounted {
+            eprintln!("  {}", file.display());
+        }
     }
 
     let duration = start.elapsed();

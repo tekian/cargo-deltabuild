@@ -1,10 +1,7 @@
 #![doc(hidden)]
 
-//! A legacy stub to point people to the real deal.
-
-use std::process::exit;
+//! A cargo tool to detect impacted crates from git changes.
 
 fn main() {
-    eprintln!("cargo-detlabuild is now cargo-delta! Please install cargo-delta and uninstall cargo-deltabuild.");
-    exit(1);
+    cargo_delta_lib::run(std::env::args());
 }

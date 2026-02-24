@@ -79,14 +79,28 @@ pub fn resolve_workspace_relative(workspace: &Path, relative_path: &str) -> Opti
     )
 }
 
-pub fn find_unrelated(git_root: &Path, excludes: &[PathBuf], exclude_patterns: &[String]) -> Vec<PathBuf> {
+pub struct UnrelatedFiles {
+    pub unaccounted: Vec<PathBuf>,
+    pub trip_wire: Vec<PathBuf>,
+    pub excluded: Vec<PathBuf>,
+}
+
+pub fn find_unrelated(
+    git_root: &Path,
+    excludes: &[PathBuf],
+    exclude_patterns: &[String],
+    trip_wire_patterns: &[String],
+) -> UnrelatedFiles {
     fn visit(
         dir: &Path,
         git_root: &Path,
         excludes: &[PathBuf],
         excludes_processed: &[PathBuf],
         compiled_patterns: &[Pattern],
-        result: &mut Vec<PathBuf>,
+        compiled_trip_wires: &[Pattern],
+        unaccounted: &mut Vec<PathBuf>,
+        trip_wire: &mut Vec<PathBuf>,
+        excluded: &mut Vec<PathBuf>,
     ) {
         let Ok(entries) = fs::read_dir(dir) else {
             return;
@@ -95,15 +109,29 @@ pub fn find_unrelated(git_root: &Path, excludes: &[PathBuf], exclude_patterns: &
         for entry in entries.flatten() {
             let path = entry.path();
 
-            // Check if path matches any glob pattern
             if let Some(name) = path.file_name().and_then(|n| n.to_str())
                 && compiled_patterns.iter().any(|pattern| pattern.matches(name))
             {
+                if path.is_file() {
+                    if let Ok(rel) = path.strip_prefix(git_root) {
+                        excluded.push(rel.to_path_buf());
+                    }
+                }
                 continue;
             }
 
             if path.is_dir() {
-                visit(&path, git_root, excludes, excludes_processed, compiled_patterns, result);
+                visit(
+                    &path,
+                    git_root,
+                    excludes,
+                    excludes_processed,
+                    compiled_patterns,
+                    compiled_trip_wires,
+                    unaccounted,
+                    trip_wire,
+                    excluded,
+                );
                 continue;
             }
 
@@ -113,7 +141,7 @@ pub fn find_unrelated(git_root: &Path, excludes: &[PathBuf], exclude_patterns: &
 
             let relative_path = match path.strip_prefix(git_root) {
                 Ok(rel) => rel.to_path_buf(),
-                Err(_) => continue, // Skip files outside git root
+                Err(_) => continue,
             };
 
             if excludes.contains(&relative_path) {
@@ -127,7 +155,12 @@ pub fn find_unrelated(git_root: &Path, excludes: &[PathBuf], exclude_patterns: &
                 continue;
             }
 
-            result.push(relative_path);
+            let file_str = relative_path.to_string_lossy();
+            if compiled_trip_wires.iter().any(|pattern| pattern.matches(&file_str)) {
+                trip_wire.push(relative_path);
+            } else {
+                unaccounted.push(relative_path);
+            }
         }
     }
 
@@ -138,7 +171,26 @@ pub fn find_unrelated(git_root: &Path, excludes: &[PathBuf], exclude_patterns: &
 
     let compiled: Vec<Pattern> = exclude_patterns.iter().filter_map(|pattern| Pattern::new(pattern).ok()).collect();
 
-    let mut files = Vec::new();
-    visit(git_root, git_root, excludes, &excludes_processed, &compiled, &mut files);
-    files
+    let compiled_trip_wires: Vec<Pattern> =
+        trip_wire_patterns.iter().filter_map(|pattern| Pattern::new(pattern).ok()).collect();
+
+    let mut unaccounted = Vec::new();
+    let mut trip_wire = Vec::new();
+    let mut excluded = Vec::new();
+    visit(
+        git_root,
+        git_root,
+        excludes,
+        &excludes_processed,
+        &compiled,
+        &compiled_trip_wires,
+        &mut unaccounted,
+        &mut trip_wire,
+        &mut excluded,
+    );
+    UnrelatedFiles {
+        unaccounted,
+        trip_wire,
+        excluded,
+    }
 }
