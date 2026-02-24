@@ -53,15 +53,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "cargo-deltabuild"
-version = "0.1.0"
-dependencies = [
- "cargo-deltabuild-lib",
-]
+name = "cargo-delta"
+version = "0.2.0"
 
 [[package]]
-name = "cargo-deltabuild-lib"
-version = "0.1.0"
+name = "cargo-delta-lib"
+version = "0.2.0"
 dependencies = [
  "clap",
  "encoding_rs",
@@ -73,6 +70,10 @@ dependencies = [
  "thiserror",
  "toml",
 ]
+
+[[package]]
+name = "cargo-deltabuild"
+version = "0.2.0"
 
 [[package]]
 name = "cfg-if"

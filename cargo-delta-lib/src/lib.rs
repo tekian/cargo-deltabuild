@@ -1,7 +1,7 @@
 #![doc(hidden)]
 #![cfg_attr(coverage_nightly, feature(coverage_attribute))]
 
-//! This is an implementation detail of the cargo-deltabuild tool. Do not take a dependency on this crate
+//! This is an implementation detail of the cargo-delta tool. Do not take a dependency on this crate
 //! as it may change in incompatible ways without warning.
 
 use clap::builder::Styles;
@@ -31,9 +31,9 @@ const CLAP_STYLES: Styles = Styles::styled()
     .literal(AnsiColor::Cyan.on_default().effects(Effects::BOLD))
     .placeholder(AnsiColor::Cyan.on_default());
 
-/// Top-level CLI wrapper for `cargo deltabuild`.
+/// Top-level CLI wrapper for `cargo delta`.
 #[derive(Parser)]
-#[command(name = "cargo-deltabuild", bin_name = "cargo", version, styles = CLAP_STYLES)]
+#[command(name = "cargo-delta", bin_name = "cargo", version, styles = CLAP_STYLES)]
 struct Cli {
     #[command(subcommand)]
     command: CargoSubcommand,
@@ -41,12 +41,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum CargoSubcommand {
-    Deltabuild(Args),
+    Delta(Args),
 }
 
 /// Identify impacted crates from git changes.
 #[derive(Parser)]
-#[command(name = "cargo-deltabuild", version, display_name = "cargo-deltabuild")]
+#[command(name = "cargo-delta", version, display_name = "cargo-delta")]
 #[command(about = "Identify impacted crates from git changes")]
 struct Args {
     /// Path to the config file
@@ -59,7 +59,7 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Run deltabuild and show impacted crates
+    /// Run delta and show impacted crates
     Run(RunCommand),
     /// Analyze current workspace and produce JSON output
     Analyze(AnalyzeCommand),
@@ -96,9 +96,9 @@ struct WorkspaceTree {
     pub crates: Crates,
 }
 
-/// Run the cargo-deltabuild tool with the given command-line arguments.
+/// Run the cargo-delta tool with the given command-line arguments.
 pub fn run(args: impl IntoIterator<Item = String>) {
-    let CargoSubcommand::Deltabuild(cli) = Cli::parse_from(args).command;
+    let CargoSubcommand::Delta(cli) = Cli::parse_from(args).command;
 
     let config = match config::load_config(cli.config.clone()) {
         Ok(i) => i,
@@ -188,7 +188,7 @@ fn analyze(config: &MainConfig, eprintln_common_props: impl FnOnce()) {
 
 #[doc(hidden)]
 fn run_command(config: &MainConfig, baseline: &Path, current: &Path, eprintln_common_props: impl FnOnce()) {
-    eprintln!("Running deltabuild..\n");
+    eprintln!("Running delta..\n");
     eprintln_common_props();
 
     // Get git root to ensure we're working with consistent path bases

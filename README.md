@@ -1,11 +1,11 @@
-# cargo-deltabuild
+# cargo-delta
 
-[![crate.io](https://img.shields.io/crates/v/cargo-deltabuild.svg)](https://crates.io/crates/cargo-deltabuild)
-[![CI](https://github.com/tekian/cargo-deltabuild/workflows/main/badge.svg)](https://github.com/tekian/cargo-deltabuild/actions)
-[![Coverage](https://codecov.io/gh/tekian/cargo-deltabuild/graph/badge.svg)](https://codecov.io/gh/tekian/cargo-deltabuild)
+[![crate.io](https://img.shields.io/crates/v/cargo-delta.svg)](https://crates.io/crates/cargo-delta)
+[![CI](https://github.com/tekian/cargo-delta/workflows/main/badge.svg)](https://github.com/tekian/cargo-delta/actions)
+[![Coverage](https://codecov.io/gh/tekian/cargo-delta/graph/badge.svg)](https://codecov.io/gh/tekian/cargo-delta)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-`cargo-deltabuild` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch. Build, test, and benchmark only the crates you need, saving time and resources in your CI/CD pipeline.
+`cargo-delta` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch. Build, test, and benchmark only the crates you need, saving time and resources in your CI/CD pipeline.
 
 - **Robust Detection**: Uses code analysis, pattern matching and runtime heuristics to identify dependencies.
 - **Impact Categorization**: Separates crates into _Modified_, _Affected_, and _Required_ for precise targeting.
@@ -16,7 +16,7 @@
 ## Installation
 
 ```bash
-cargo install cargo-deltabuild
+cargo install cargo-delta
 ```
 
 ## Usage
@@ -24,27 +24,27 @@ cargo install cargo-deltabuild
 1. **Check out the baseline branch and analyze:**
    ```bash
    git checkout main
-   cargo deltabuild analyze > main.json
+   cargo delta analyze > main.json
    ```
 
 2. **Check out your feature branch and analyze:**
    ```bash
    git checkout feature-branch
-   cargo deltabuild analyze > feature.json
+   cargo delta analyze > feature.json
    ```
 
 3. **Compare analyses to find impacted crates:**
    ```bash
-   cargo deltabuild run --baseline main.json --current feature.json
+   cargo delta run --baseline main.json --current feature.json
    ```
 
 ## Configuration
 
-You can customize `cargo-deltabuild` by providing a `-c config.toml` argument to the command.
+You can customize `cargo-delta` by providing a `-c config.toml` argument to the command.
 
 ```bash
-cargo deltabuild analyze -c config.toml # ...
-cargo deltabuild run -c config.toml # ...
+cargo delta analyze -c config.toml # ...
+cargo delta run -c config.toml # ...
 ```
 
 Configuration options can be set globally and overridden per crate. For example:
@@ -166,7 +166,7 @@ Config example:
 ```toml
 trip_wire_patterns = [
     "Cargo.toml",       # top-level Cargo.toml
-    "deltabuild.toml"   # DeltaBuild config file
+    "delta.toml"   # Delta config file
 ]
 ```
 
@@ -200,8 +200,8 @@ This tool is **best-effort** and may not detect all dependencies:
 ## Example
 
 ```bash
-$ cargo deltabuild run --baseline main.json --current feature.json
-Running deltabuild..
+$ cargo delta run --baseline main.json --current feature.json
+Running delta..
 
 Looking up git changes..
 
