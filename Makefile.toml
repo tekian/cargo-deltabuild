@@ -1,0 +1,102 @@
+[config]
+default_to_workspace = false
+
+# -----------------------------------------------------------------------------
+# Install
+# -----------------------------------------------------------------------------
+
+[tasks.install]
+description = "Install all tools required for static analysis and formatting checks."
+category = "Static Analysis"
+script_runner = "@duckscript"
+script = '''
+constants = readfile ./constants.env
+lines = split ${constants} "\n"
+for line in ${lines}
+    trimmed = trim ${line}
+    starts_with_hash = starts_with ${trimmed} "#"
+    is_empty = is_empty ${trimmed}
+    if not ${starts_with_hash}
+        if not ${is_empty}
+            parts = split ${trimmed} "="
+            key = array_get ${parts} 0
+            val = array_get ${parts} 1
+            set_env ${key} ${val}
+        end
+    end
+end
+
+sort_ver = get_env CARGO_SORT_VERSION
+cyclic_ver = get_env CARGO_ENSURE_NO_CYCLIC_DEPS_VERSION
+no_defaults_ver = get_env CARGO_ENSURE_NO_DEFAULT_FEATURES_VERSION
+deny_ver = get_env CARGO_DENY_VERSION
+
+exec cargo install cargo-sort@${sort_ver}
+exec cargo install cargo-ensure-no-cyclic-deps@${cyclic_ver}
+exec cargo install cargo-ensure-no-default-features@${no_defaults_ver}
+exec cargo install cargo-deny@${deny_ver}
+'''
+
+# -----------------------------------------------------------------------------
+# Static analysis (mirrors the static-analysis CI job)
+# -----------------------------------------------------------------------------
+
+[tasks.clippy]
+description = "Run Clippy on all targets and features, treating warnings as errors."
+category = "Static Analysis"
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--all-features", "--locked", "--", "-D", "warnings"]
+
+[tasks.fmt-check]
+description = "Check source formatting with rustfmt."
+category = "Static Analysis"
+command = "cargo"
+args = ["fmt", "--", "--check"]
+
+[tasks.fmt]
+description = "Apply source formatting with rustfmt."
+category = "Static Analysis"
+command = "cargo"
+args = ["fmt"]
+
+[tasks.sort-check]
+description = "Check Cargo.toml key ordering with cargo-sort."
+category = "Static Analysis"
+command = "cargo"
+args = ["sort", "--check", "--grouped", "--workspace"]
+
+[tasks.sort]
+description = "Apply Cargo.toml key ordering with cargo-sort."
+category = "Static Analysis"
+command = "cargo"
+args = ["sort", "--grouped", "--workspace"]
+
+[tasks.no-cyclic-deps]
+description = "Ensure there are no cyclic dependencies."
+category = "Static Analysis"
+command = "cargo"
+args = ["ensure-no-cyclic-deps"]
+
+[tasks.no-default-features]
+description = "Ensure no crate relies on default features of its dependencies."
+category = "Static Analysis"
+command = "cargo"
+args = ["ensure-no-default-features"]
+
+[tasks.deny]
+description = "Validate dependencies with cargo-deny (licenses, advisories, bans, sources)."
+category = "Static Analysis"
+command = "cargo"
+args = ["deny", "--all-features", "--workspace", "--color", "always", "check", "all"]
+
+[tasks.check]
+description = "Run all static analysis checks (mirrors the static-analysis CI job)."
+category = "Static Analysis"
+dependencies = [
+  "clippy",
+  "fmt-check",
+  "sort-check",
+  "no-cyclic-deps",
+  "no-default-features",
+  "deny",
+]
