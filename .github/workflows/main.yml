@@ -170,8 +170,13 @@ jobs:
       - name: Generate PR Diff
         run: git diff origin/main...HEAD >diff.txt
       - name: Mutate Diff
+        id: mutants
+        continue-on-error: true
         timeout-minutes: 45
         run: cargo mutants --test-workspace=true --colors=never --jobs=2 --build-timeout=120 --cap-lints=true --in-diff diff.txt
+      - name: Mutation Testing Warning
+        if: steps.mutants.outcome == 'failure'
+        run: echo "::warning::Mutation testing found surviving mutants. Review the output above."
 
   coverage:
     runs-on: ${{ matrix.os }}

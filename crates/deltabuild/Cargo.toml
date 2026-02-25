@@ -1,20 +1,17 @@
 [package]
-name = "cargo-delta"
-description = "Detects which crates in a Cargo workspace are affected by changes in a Git feature branch."
+name = "cargo-deltabuild"
+description = "Deprecated: use cargo-delta instead."
 keywords = ["cargo", "workspace", "ci", "build", "git"]
 categories = ["development-tools", "development-tools::cargo-plugins"]
-readme = "../README.md"
+readme = "../../README.md"
 authors = ["Jan Guttek <jan@guttek.net>"]
 
-version = "0.2.0"
-edition = "2024"
-rust-version = "1.93.0"
+version.workspace = true
+edition.workspace = true
 license.workspace = true
 repository.workspace = true
+rust-version.workspace = true
 homepage.workspace = true
-
-[dependencies]
-cargo-delta-lib.workspace = true
 
 [lints]
 workspace = true
