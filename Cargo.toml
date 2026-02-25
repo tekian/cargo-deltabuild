@@ -3,7 +3,7 @@ members = ["crates/delta", "crates/delta-lib", "crates/deltabuild"]
 resolver = "2"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 rust-version = "1.93.0"
 license = "MIT"
@@ -11,7 +11,7 @@ repository = "https://github.com/tekian/cargo-delta"
 homepage = "https://github.com/tekian/cargo-delta"
 
 [workspace.dependencies]
-cargo-delta-lib = { path = "crates/delta-lib", version = "0.2.0", default-features = false }
+cargo-delta-lib = { path = "crates/delta-lib", version = "0.2.1", default-features = false }
 clap = { version = "4.5.60", default-features = false }
 encoding_rs = { version = "0.8.35", default-features = false }
 glob = { version = "0.3.3", default-features = false }
