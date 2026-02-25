@@ -61,7 +61,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-delta-lib"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "clap",
  "encoding_rs",
@@ -76,7 +76,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-deltabuild"
-version = "0.2.0"
+version = "0.2.1"
 
 [[package]]
 name = "cfg-if"
