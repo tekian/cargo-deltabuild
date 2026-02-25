@@ -6,7 +6,7 @@ categories = ["development-tools", "development-tools::cargo-plugins"]
 readme = "../../README.md"
 authors = ["Jan Guttek <jan@guttek.net>"]
 
-version = "0.2.0"
+version.workspace = true
 edition = "2024"
 rust-version = "1.93.0"
 license.workspace = true
