@@ -5,13 +5,13 @@
 [![Coverage](https://codecov.io/gh/tekian/cargo-delta/graph/badge.svg)](https://codecov.io/gh/tekian/cargo-delta)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-`cargo-delta` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch. Build, test, and benchmark only the crates you need, saving time and resources in your CI/CD pipeline.
+`cargo-delta` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch. Build, test, and benchmark only the crates you need.
 
-- **Robust Detection**: Uses code analysis, pattern matching and runtime heuristics to identify dependencies.
-- **Impact Categorization**: Separates crates into _Modified_, _Affected_, and _Required_ for precise targeting.
-- **Configurability**: Highly customizable via config, with per-crate overrides for parsing and detection.
-- **Dual-branch Git Detection**: Compares two branches or commits to find both modified and deleted files.
-- **File Control Mechanisms**: Exclude files from analysis or trigger a full rebuild when critical files change.
+- **Detection Methods**: Code analysis, pattern matching and runtime heuristics.
+- **Impact Categorization**: Separates crates into _Modified_, _Affected_, and _Required_.
+- **Configurable**: Global and per-crate settings for parsing and detection.
+- **Dual-branch Git Comparison**: Compares two branches or commits to find both modified and deleted files.
+- **File Control**: Exclude files from analysis or trigger a full rebuild when critical files change.
 
 ## Installation
 
@@ -21,22 +21,56 @@ cargo install cargo-delta
 
 ## Usage
 
-1. **Check out the baseline branch and analyze:**
+### Quick Start
+
+1. **Analyze the baseline branch:**
    ```bash
    git checkout main
    cargo delta analyze > main.json
    ```
 
-2. **Check out your feature branch and analyze:**
+2. **Analyze the feature branch:**
    ```bash
    git checkout feature-branch
    cargo delta analyze > feature.json
    ```
 
-3. **Compare analyses to find impacted crates:**
+3. **Compare to find impacted crates:**
    ```bash
    cargo delta run --baseline main.json --current feature.json
    ```
+
+### CI/CD Integration
+
+`cargo-delta` is designed to speed up PR builds by building and testing only impacted crates.
+Since detection is best-effort, a **backstop build** must run separately to catch anything delta missed or was misconfigured for.
+
+**PR pipeline** — runs delta, builds and tests only impacted crates:
+
+```yaml
+# 1. Analyze baseline (main branch)
+- run: git checkout origin/main && cargo delta analyze > baseline.json
+
+# 2. Analyze current (PR branch)
+- run: git checkout $PR_BRANCH && cargo delta analyze > current.json
+
+# 3. Determine impacted crates
+- run: cargo delta run --baseline baseline.json --current current.json > delta.json
+
+# 4. Build/test only impacted crates (use "Required" output)
+- run: cargo test -p impacted-crate-a -p impacted-crate-b
+```
+
+**Backstop pipeline** — full build without delta, runs post-merge and/or on a nightly schedule:
+
+```yaml
+# Full workspace build and test, no delta
+- run: cargo build --workspace
+- run: cargo test --workspace
+```
+
+The backstop ensures correctness. If it fails on code that passed the delta-optimized PR build,
+it indicates a gap in detection or a misconfigured delta — adjust the [configuration](#configuration) accordingly.
 
 ## Configuration
 
@@ -60,7 +94,7 @@ foo_patterns = ["*.baz"] # Override for a specific crate
 
 Default settings are provided in [`config.toml.example`](./config.toml.example).
 
-## Robust Detection
+## Detection Methods
 
 ### Module Traversal
 
@@ -138,11 +172,11 @@ file_methods = [
 ]
 ```
 
-## File Control Mechanisms
+## File Control
 
 ### File Exclusion
 
-Exclude files and folders from analysis using glob patterns. Useful for ignoring build artifacts, temp files, etc.
+Exclude files and folders from analysis using glob patterns.
 
 Config default:
 
@@ -152,7 +186,7 @@ file_exclude_patterns = ["target/**", "*.tmp"]
 
 ### Trip Wire
 
-If any changed or deleted file matches a configured trip wire pattern, all crates are considered impacted. Use this for critical files like top-level `Cargo.toml`, build scripts, or configuration files.
+If any changed or deleted file matches a trip wire pattern, all crates are considered impacted.
 
 Config default:
 
@@ -170,7 +204,7 @@ trip_wire_patterns = [
 ]
 ```
 
-## Understanding Output
+## Output
 
 ### Analyze
 
@@ -237,8 +271,8 @@ Total        15 (Total crates in this workspace.)
 
 ## Contributing
 
-Contributions are welcome! Please feel free to fork the repository and submit a pull request.
+Fork the repository and submit a pull request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+[MIT](LICENSE)
