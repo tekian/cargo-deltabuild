@@ -1,6 +1,10 @@
 [package]
-name = "lib"
-publish = false
+name = "cargo-delta-lib"
+description = "Implementation detail of the cargo-delta tool. Do not depend on this crate directly."
+keywords = ["cargo", "workspace", "ci", "build", "git"]
+categories = ["development-tools", "development-tools::cargo-plugins"]
+readme = "../../README.md"
+authors = ["Jan Guttek <jan@guttek.net>"]
 
 version.workspace = true
 edition.workspace = true
