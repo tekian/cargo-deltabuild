@@ -1,4 +1,4 @@
-73
+75
 Configurability
 customizable
 F1
@@ -54,6 +54,8 @@ rustdoc
 sandboxed
 SPDX
 startup
+stderr
+stdout
 struct
 structs
 subcommand

@@ -1,0 +1,78 @@
+use crate::host::Host;
+use std::collections::VecDeque;
+use std::io::{self, Write};
+use std::path::Path;
+use std::process::Output;
+
+pub struct TestHost {
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+    pub exit_code: Option<i32>,
+    command_responses: VecDeque<io::Result<Output>>,
+}
+
+impl TestHost {
+    pub fn new() -> Self {
+        Self {
+            stdout: Vec::new(),
+            stderr: Vec::new(),
+            exit_code: None,
+            command_responses: VecDeque::new(),
+        }
+    }
+
+    pub fn with_commands(mut self, responses: Vec<io::Result<Output>>) -> Self {
+        self.command_responses = VecDeque::from(responses);
+        self
+    }
+
+    pub fn stdout_str(&self) -> String {
+        String::from_utf8_lossy(&self.stdout).to_string()
+    }
+
+    pub fn stderr_str(&self) -> String {
+        String::from_utf8_lossy(&self.stderr).to_string()
+    }
+}
+
+impl Host for TestHost {
+    fn output(&mut self) -> impl Write {
+        &mut self.stdout
+    }
+
+    fn error(&mut self) -> impl Write {
+        &mut self.stderr
+    }
+
+    fn exit(&mut self, code: i32) {
+        self.exit_code = Some(code);
+    }
+
+    fn run_command(&mut self, _command: &str, _args: &[&str], _working_dir: Option<&Path>) -> io::Result<Output> {
+        self.command_responses
+            .pop_front()
+            .unwrap_or_else(|| Err(io::Error::other("no more mock command responses")))
+    }
+}
+
+pub fn make_output(code: i32, stdout: &str, stderr: &str) -> Output {
+    let exit_arg = format!("exit {code}");
+    let status = if cfg!(windows) {
+        std::process::Command::new("cmd").args(["/C", &exit_arg]).status().unwrap()
+    } else {
+        std::process::Command::new("sh").args(["-c", &exit_arg]).status().unwrap()
+    };
+    Output {
+        status,
+        stdout: stdout.as_bytes().to_vec(),
+        stderr: stderr.as_bytes().to_vec(),
+    }
+}
+
+pub fn success_output(stdout: &str) -> Output {
+    make_output(0, stdout, "")
+}
+
+pub fn failure_output(stderr: &str) -> Output {
+    make_output(1, "", stderr)
+}
