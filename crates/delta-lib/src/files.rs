@@ -11,6 +11,7 @@ use crate::{
     cargo::{CargoCrate, CargoMetadata},
     config::{MainConfig, ParserConfig},
     error::Result,
+    host::Host,
     utils,
 };
 
@@ -333,6 +334,7 @@ fn resolve_mod_files(base: &Path, mods: &[String]) -> Vec<PathBuf> {
 }
 
 fn build_file_node(
+    host: &mut impl Host,
     file_path: &Path,
     visited: &mut HashSet<PathBuf>,
     workspace_root: Option<&Path>,
@@ -369,7 +371,7 @@ fn build_file_node(
         let mod_files = resolve_mod_files(&actual_base, &visitor.mods);
 
         for mod_file in mod_files {
-            let mut child_node = build_file_node(&mod_file, visited, workspace_root, main_config, crate_name);
+            let mut child_node = build_file_node(host, &mod_file, visited, workspace_root, main_config, crate_name);
 
             child_node.kind = FileKind::Module;
             node.add_child(child_node);
@@ -384,7 +386,7 @@ fn build_file_node(
             let nested_mod_files = resolve_mod_files(&parent_dir, core::slice::from_ref(nested_mod_name));
 
             for mod_file in nested_mod_files {
-                let mut child_node = build_file_node(&mod_file, visited, workspace_root, main_config, crate_name);
+                let mut child_node = build_file_node(host, &mod_file, visited, workspace_root, main_config, crate_name);
 
                 child_node.kind = FileKind::Module;
                 node.add_child(child_node);
@@ -399,7 +401,7 @@ fn build_file_node(
         }
     }
 
-    let includes = utils::resolve_includes(file_path, &visitor.includes);
+    let includes = utils::resolve_includes(host, file_path, &visitor.includes);
 
     for include in includes {
         node.add_child(FileNode::new(include, FileKind::MacroInclude));
@@ -435,7 +437,7 @@ fn find_assume_files(crate_root: &Path, patterns: &HashSet<String>) -> Vec<PathB
     found_files
 }
 
-pub fn build_tree(metadata: &CargoMetadata, crates: &[&CargoCrate], config: &MainConfig) -> FileNode {
+pub fn build_tree(host: &mut impl Host, metadata: &CargoMetadata, crates: &[&CargoCrate], config: &MainConfig) -> FileNode {
     let mut visited = HashSet::new();
 
     let root_path = metadata.workspace_root.join("Cargo.toml");
@@ -449,7 +451,14 @@ pub fn build_tree(metadata: &CargoMetadata, crates: &[&CargoCrate], config: &Mai
         for target in &crate_.targets {
             let mut target_node = FileNode::new(target.src_path.clone(), FileKind::Target);
 
-            let source_tree = build_file_node(&target.src_path, &mut visited, Some(&metadata.workspace_root), config, &crate_.name);
+            let source_tree = build_file_node(
+                host,
+                &target.src_path,
+                &mut visited,
+                Some(&metadata.workspace_root),
+                config,
+                &crate_.name,
+            );
 
             for child in source_tree.children {
                 target_node.add_child(child);

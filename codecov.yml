@@ -1,10 +1,10 @@
 coverage:
   precision: 1
   round: down
-  range: 50..100
+  range: 65..100
   status:
     project:
       default:
-        target: 30
+        target: 65
         threshold: "0"
         base: auto

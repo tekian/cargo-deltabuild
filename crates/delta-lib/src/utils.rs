@@ -1,9 +1,11 @@
 use crate::error::{Error, Result};
+use crate::host::Host;
 use encoding_rs::Encoding;
 use glob::Pattern;
 use normpath::PathExt;
 use serde::de::DeserializeOwned;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 pub fn deser_json<T: DeserializeOwned>(file_path: &Path) -> Result<T> {
@@ -40,14 +42,14 @@ pub fn deser_json<T: DeserializeOwned>(file_path: &Path) -> Result<T> {
     })
 }
 
-pub fn resolve_includes(base: &Path, includes: &[String]) -> Vec<PathBuf> {
+pub fn resolve_includes(host: &mut impl Host, base: &Path, includes: &[String]) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
     for include_path in includes {
         if let Some(resolved_path) = resolve(base, include_path) {
             files.push(resolved_path);
         } else {
-            eprintln!("Warning: Could not resolve include_str! path: {include_path}");
+            let _ = writeln!(host.error(), "Warning: Could not resolve include_str! path: {include_path}");
         }
     }
 
@@ -179,4 +181,73 @@ pub fn find_unrelated(git_root: &Path, excludes: &[PathBuf], exclude_patterns: &
         &mut result,
     );
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_helpers::TestHost;
+
+    #[test]
+    fn resolve_includes_warns_on_unresolvable_path() {
+        let mut host = TestHost::new();
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join("lib.rs");
+        let result = resolve_includes(&mut host, &base, &["nonexistent_file_xyz.rs".to_string()]);
+        assert!(result.is_empty());
+        assert!(host.stderr_str().contains("Warning"));
+        assert!(host.stderr_str().contains("nonexistent_file_xyz.rs"));
+    }
+
+    #[test]
+    fn resolve_includes_resolves_existing_path() {
+        let mut host = TestHost::new();
+        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src").join("lib.rs");
+        let result = resolve_includes(&mut host, &base, &["host.rs".to_string()]);
+        assert_eq!(result.len(), 1);
+        assert!(host.stderr_str().is_empty());
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn deser_json_reads_valid_json() {
+        let tmp = std::env::temp_dir().join("cargo_delta_test_deser_valid.json");
+        fs::write(&tmp, r#"{"key": "value"}"#).unwrap();
+
+        let result: std::collections::HashMap<String, String> = deser_json(&tmp).unwrap();
+        assert_eq!(&result["key"], "value");
+
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn deser_json_handles_utf8_bom() {
+        let tmp = std::env::temp_dir().join("cargo_delta_test_deser_bom.json");
+        let mut content = vec![0xEF, 0xBB, 0xBF]; // UTF-8 BOM
+        content.extend_from_slice(br#"{"key": "value"}"#);
+        fs::write(&tmp, &content).unwrap();
+
+        let result: std::collections::HashMap<String, String> = deser_json(&tmp).unwrap();
+        assert_eq!(&result["key"], "value");
+
+        let _ = fs::remove_file(&tmp);
+    }
+
+    #[test]
+    fn deser_json_returns_error_for_missing_file() {
+        let result: Result<std::collections::HashMap<String, String>> = deser_json(Path::new("nonexistent_xyz_test.json"));
+        let _ = result.unwrap_err();
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn deser_json_returns_error_for_invalid_json() {
+        let tmp = std::env::temp_dir().join("cargo_delta_test_deser_bad.json");
+        fs::write(&tmp, "not json at all").unwrap();
+
+        let result: Result<std::collections::HashMap<String, String>> = deser_json(&tmp);
+        let _ = result.unwrap_err();
+
+        let _ = fs::remove_file(&tmp);
+    }
 }

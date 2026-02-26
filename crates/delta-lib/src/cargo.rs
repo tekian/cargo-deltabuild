@@ -1,7 +1,8 @@
 use crate::error::{Error, Result};
+use crate::host::Host;
 use normpath::PathExt;
 use serde::{Deserialize, Serialize};
-use std::{path::PathBuf, process::Command};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CargoMetadata {
@@ -33,12 +34,8 @@ pub struct CargoDependency {
 }
 
 /// Get cargo metadata from current working directory
-pub fn metadata() -> Result<CargoMetadata> {
-    let mut cmd = Command::new("cargo");
-
-    let _ = cmd.arg("metadata").arg("--format-version").arg("1").arg("--no-deps");
-
-    let output = cmd.output()?;
+pub fn metadata(host: &mut impl Host) -> Result<CargoMetadata> {
+    let output = host.run_command("cargo", &["metadata", "--format-version", "1", "--no-deps"], None)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -60,4 +57,88 @@ pub fn metadata() -> Result<CargoMetadata> {
 
 pub fn get_workspace_crates(metadata: &CargoMetadata) -> Vec<&CargoCrate> {
     metadata.packages.iter().filter(|pkg| pkg.source.is_none()).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_helpers::*;
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn metadata_parses_valid_output() {
+        let json = serde_json::json!({
+            "packages": [{
+                "name": "my-crate",
+                "source": null,
+                "targets": [{"name": "my-crate", "kind": ["lib"], "src_path": "src/lib.rs"}],
+                "manifest_path": "Cargo.toml",
+                "dependencies": []
+            }],
+            "workspace_root": ".",
+            "target_directory": "target"
+        });
+
+        let mut host = TestHost::new().with_commands(vec![Ok(success_output(&json.to_string()))]);
+
+        let result = metadata(&mut host).unwrap();
+        assert_eq!(result.packages.len(), 1);
+        assert_eq!(result.packages[0].name, "my-crate");
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn metadata_returns_error_on_command_failure() {
+        let mut host = TestHost::new().with_commands(vec![Ok(failure_output("cargo not found"))]);
+
+        let result = metadata(&mut host);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cargo not found"));
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn metadata_returns_error_on_invalid_json() {
+        let mut host = TestHost::new().with_commands(vec![Ok(success_output("not valid json"))]);
+
+        let result = metadata(&mut host);
+        let _ = result.unwrap_err();
+    }
+
+    #[test]
+    fn metadata_returns_error_on_io_failure() {
+        let mut host = TestHost::new().with_commands(vec![Err(std::io::Error::new(std::io::ErrorKind::NotFound, "cargo not installed"))]);
+
+        let result = metadata(&mut host);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cargo not installed"));
+    }
+
+    #[test]
+    fn get_workspace_crates_filters_external_packages() {
+        let meta = CargoMetadata {
+            packages: vec![
+                CargoCrate {
+                    name: "local".to_string(),
+                    source: None,
+                    targets: vec![],
+                    manifest_path: PathBuf::from("Cargo.toml"),
+                    dependencies: vec![],
+                },
+                CargoCrate {
+                    name: "external".to_string(),
+                    source: Some("registry+https://github.com/rust-lang/crates.io-index".to_string()),
+                    targets: vec![],
+                    manifest_path: PathBuf::from("Cargo.toml"),
+                    dependencies: vec![],
+                },
+            ],
+            workspace_root: PathBuf::from("."),
+            target_directory: PathBuf::from("target"),
+        };
+
+        let result = get_workspace_crates(&meta);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "local");
+    }
 }
