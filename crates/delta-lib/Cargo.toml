@@ -4,8 +4,8 @@ description = "Implementation detail of the cargo-delta tool. Do not depend on t
 keywords = ["cargo", "workspace", "ci", "build", "git"]
 categories = ["development-tools", "development-tools::cargo-plugins"]
 readme = "../../README.md"
-authors = ["Jan Guttek <jan@guttek.net>"]
 
+authors.workspace = true
 version.workspace = true
 edition.workspace = true
 license.workspace = true

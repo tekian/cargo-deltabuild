@@ -3,6 +3,7 @@ members = ["crates/delta", "crates/delta-lib", "crates/deltabuild"]
 resolver = "2"
 
 [workspace.package]
+authors = ["Jan Guttek <jan@guttek.net>"]
 version = "0.2.1"
 edition = "2024"
 rust-version = "1.93.0"
