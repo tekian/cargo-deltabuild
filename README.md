@@ -7,11 +7,27 @@
 
 `cargo-delta` detects which crates in a Cargo workspace are impacted by changes in a Git feature branch. Build, test, and benchmark only the crates you need.
 
-- **Detection Methods**: Code analysis, pattern matching and runtime heuristics.
-- **Impact Categorization**: Separates crates into _Modified_, _Affected_, and _Required_.
-- **Configurable**: Global and per-crate settings for parsing and detection.
-- **Dual-branch Git Comparison**: Compares two branches or commits to find both modified and deleted files.
-- **File Control**: Exclude files from analysis or trigger a full rebuild when critical files change.
+- [Installation](#installation)
+- [Usage](#usage)
+    - [Quick Start](#quick-start)
+    - [CI/CD Integration](#cicd-integration)
+- [Configuration](#configuration)
+- [Detection Methods](#detection-methods)
+    - [Module Traversal](#module-traversal)
+    - [Mod Macros](#mod-macros)
+    - [Include Macros](#include-macros)
+    - [Pattern-based Assumptions](#pattern-based-assumptions)
+    - [File Method Matching](#file-method-matching)
+- [File Control](#file-control)
+    - [File Exclusion](#file-exclusion)
+    - [Trip Wire](#trip-wire)
+- [Output](#output)
+    - [Analyze](#analyze)
+    - [Run](#run)
+- [Limitations](#limitations)
+- [Example](#example)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Installation
 

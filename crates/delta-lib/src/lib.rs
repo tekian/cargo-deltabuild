@@ -37,7 +37,7 @@ const CLAP_STYLES: Styles = Styles::styled()
 
 /// Top-level CLI wrapper for `cargo delta`.
 #[derive(Parser)]
-#[command(name = "cargo-delta", bin_name = "cargo", version, styles = CLAP_STYLES)]
+#[command(name = "cargo-delta", bin_name = "cargo", version, about, author, styles = CLAP_STYLES)]
 struct Cli {
     #[command(subcommand)]
     command: CargoSubcommand,
@@ -50,11 +50,11 @@ enum CargoSubcommand {
 
 /// Identify impacted crates from git changes.
 #[derive(Parser)]
-#[command(name = "cargo-delta", version, display_name = "cargo-delta")]
+#[command(name = "cargo-delta", author, version, long_about = None, display_name = "cargo-delta")]
 #[command(about = "Identify impacted crates from git changes")]
 struct Args {
-    /// Path to the config file
-    #[arg(short = 'c', long)]
+    /// Path to configuration file (defaults to `delta.toml`)
+    #[arg(short = 'c', long, value_name = "PATH")]
     config: Option<PathBuf>,
 
     #[command(subcommand)]
@@ -72,10 +72,10 @@ enum Commands {
 #[derive(Parser)]
 struct RunCommand {
     /// Baseline workspace analysis JSON file (e.g., from main branch)
-    #[arg(long)]
+    #[arg(long, value_name = "PATH")]
     baseline: PathBuf,
     /// Current workspace analysis JSON file (e.g., from feature branch)
-    #[arg(long)]
+    #[arg(long, value_name = "PATH")]
     current: PathBuf,
 }
 

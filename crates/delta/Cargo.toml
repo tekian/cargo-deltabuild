@@ -4,11 +4,11 @@ description = "Detects which crates in a Cargo workspace are affected by changes
 keywords = ["cargo", "workspace", "ci", "build", "git"]
 categories = ["development-tools", "development-tools::cargo-plugins"]
 readme = "../../README.md"
-authors = ["Jan Guttek <jan@guttek.net>"]
 
+authors.workspace = true
 version.workspace = true
-edition = "2024"
-rust-version = "1.93.0"
+edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
